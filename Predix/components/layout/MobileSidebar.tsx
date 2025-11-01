@@ -1,12 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { WalletButton } from '@/components/wallet/WalletButton';
 import { Sidebar } from './Sidebar';
+
+const WalletButtonNoSSR = dynamic(() => import('@/components/wallet/WalletButton').then(m => m.WalletButton), { ssr: false });
 
 export function MobileSidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,11 +19,7 @@ export function MobileSidebar() {
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-background z-50">
         <div className="flex items-center justify-between h-full px-4">
           {/* Menu Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(true)}
-          >
+          <Button variant="ghost" size="icon" onClick={() => setIsOpen(true)}>
             <Menu className="w-6 h-6" />
           </Button>
 
@@ -35,7 +33,7 @@ export function MobileSidebar() {
 
           {/* Wallet Button */}
           <div className="scale-90">
-            <WalletButton />
+            <WalletButtonNoSSR />
           </div>
         </div>
       </div>
@@ -71,10 +69,3 @@ export function MobileSidebar() {
     </>
   );
 }
-
-// Update Sidebar component to accept onClose prop
-interface SidebarCloseProps {
-  onClose?: () => void;
-}
-
-// This would be added to the existing Sidebar component props

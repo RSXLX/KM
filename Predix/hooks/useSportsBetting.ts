@@ -35,6 +35,7 @@ export interface LivePoint { t: number; ts: number; home: number; away: number; 
 
 export interface MatchData {
   matchId: string;
+  marketAddress?: string;
   teams: {
     home: Team;
     away: Team;
@@ -47,6 +48,7 @@ export interface MatchData {
 export function useSportsBetting(initialId?: string) {
   const [matchData, setMatchData] = useState<MatchData>({
     matchId: initialId || '001',
+    marketAddress: undefined, // 将在加载时设置
     teams: {
       home: { code: 'NYJ', name: 'New York Jets' },
       away: { code: 'CIN', name: 'Cincinnati Bengals' }
@@ -84,6 +86,7 @@ export function useSportsBetting(initialId?: string) {
 
     setMatchData(prev => ({
       ...prev,
+      marketAddress: prev.marketAddress || `market_${prev.matchId}`, // 设置默认 marketAddress
       odds: {
         home: homeOdds,
         away: awayOdds,
@@ -151,6 +154,7 @@ export function useSportsBetting(initialId?: string) {
         setMatchData(prev => ({
           ...prev,
           matchId: String(local.id ?? id),
+          marketAddress: local.marketAddress || `market_${id}`, // 从本地数据获取或生成默认值
           teams: {
             home: { code: abbr(String(local.homeTeam ?? 'HOME')), name: String(local.homeTeam ?? 'Home') },
             away: { code: abbr(String(local.awayTeam ?? 'AWAY')), name: String(local.awayTeam ?? 'Away') },
@@ -175,6 +179,7 @@ export function useSportsBetting(initialId?: string) {
       setMatchData(prev => ({
         ...prev,
         matchId: String(data.fixture?.id ?? id),
+        marketAddress: data.marketAddress || `market_${id}`, // 从 API 获取或生成默认值
         teams: {
           home: { code: abbr(String(data.teams?.home?.name ?? 'HOME')), name: String(data.teams?.home?.name ?? 'Home') },
           away: { code: abbr(String(data.teams?.away?.name ?? 'AWAY')), name: String(data.teams?.away?.name ?? 'Away') },

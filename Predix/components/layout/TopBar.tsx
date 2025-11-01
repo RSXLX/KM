@@ -1,10 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from './SearchBar';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { WalletButton } from '@/components/wallet/WalletButton';
+
+const WalletButtonNoSSR = dynamic(() => import('@/components/wallet/WalletButton').then(m => m.WalletButton), { ssr: false });
 
 interface TopBarProps {
   sidebarWidth?: number;
@@ -37,7 +40,7 @@ export function TopBar({ sidebarWidth = 256 }: TopBarProps) {
           <LanguageSwitcher />
 
           {/* Wallet Connection */}
-          <WalletButton />
+          <WalletButtonNoSSR />
         </div>
       </div>
     </header>

@@ -43,7 +43,8 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose }: SidebarProps
   // Define navigation items
   const mainNav = [
     { id: 'home', label: t('nav.home'), href: '/', icon: 'Home' },
-    { id: 'leaderboard', label: t('nav.leaderboard'), href: '/leaderboard', icon: 'Trophy' }
+    { id: 'account-bets', label: 'My Bets', href: '/account/bets', icon: 'BarChart3' },
+    { id: 'leaderboard', label: t('nav.leaderboard'), href: '/leaderboard', icon: 'Trophy' },
   ];
 
 

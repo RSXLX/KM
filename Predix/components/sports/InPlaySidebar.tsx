@@ -6,7 +6,11 @@ import { X } from 'lucide-react';
 import { SportsBettingClient } from '@/components/sports/SportsBettingClient';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import type { LiveMatch } from '@/components/sports/LiveMatchCard';
+import { Badge } from '@/components/ui/badge';
+import { Clock, MapPin, Users, TrendingUp } from 'lucide-react';
+import { TeamDetailsSection } from './TeamDetailsSection';
+import { MyBet } from './MyBet';
+import type { LiveMatch } from './LiveMatchCard';
 
 interface InPlaySidebarProps {
   open: boolean;
@@ -15,6 +19,8 @@ interface InPlaySidebarProps {
 }
 
 export function InPlaySidebar({ open, onClose, match }: InPlaySidebarProps) {
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   // 锁定页面滚动，抽屉内独立滚动
   useEffect(() => {
     if (open) {
@@ -67,15 +73,17 @@ export function InPlaySidebar({ open, onClose, match }: InPlaySidebarProps) {
             <h2 className="text-lg font-semibold">{match?.teams.home.name} vs {match?.teams.away.name}</h2>
             <p className="text-xs text-muted-foreground">{match?.sport} · {match?.status.time}</p>
           </div>
-          <button aria-label="Close" onClick={onClose} className="p-2 rounded-md hover:bg-accent">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button aria-label="Close" onClick={onClose} className="p-2 rounded-md hover:bg-accent">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 内容滚动区域 */}
-        <div className="h-[calc(100dvh-56px)] overflow-y-auto px-6 py-6 min-w-0">
+        <div className="h-[calc(100dvh-56px)] overflow-y-auto px-6 py-4 min-w-0">
           {/* 关键指标卡片 */}
-          <Card className="tech-card mb-6">
+          <Card className="tech-card mb-4">
             <CardHeader>
               <CardTitle className="text-sm">Market Details</CardTitle>
             </CardHeader>
@@ -105,10 +113,22 @@ export function InPlaySidebar({ open, onClose, match }: InPlaySidebarProps) {
 
           {/* 体育博彩详情主体，随抽屉宽度扩展至 3/4 屏 */}
           <div className="w-full">
-            <SportsBettingClient fixtureId={match?.id} isLiveSignal={match?.status?.isLive === true} />
+            <SportsBettingClient 
+            fixtureId={match?.id} 
+            isLiveSignal={match?.status?.isLive === true}
+            onBetSuccess={() => setRefreshTrigger(prev => prev + 1)}
+          />
           </div>
 
-          <Separator className="my-8" />
+          <Separator className="my-4" />
+
+          {/* 我的投注信息 */}
+          <MyBet fixtureId={match?.id} className="mb-4" refreshTrigger={refreshTrigger} />
+
+          <Separator className="my-4" />
+
+          {/* 球队信息、球员信息和球队统计 */}
+          <TeamDetailsSection match={match} />
         </div>
       </div>
     </div>

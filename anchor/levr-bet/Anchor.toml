@@ -1,9 +1,0 @@
-[programs.devnet]
-levr_bet = "Fsrb3f4B6kGa9zJXvvBqwRNhGSrQMNeLMcfge8WiGHVu"
-
-[provider]
-cluster = "devnet"
-wallet = "~/.config/solana/id.json"
-
-[scripts]
-deploy = "anchor deploy"

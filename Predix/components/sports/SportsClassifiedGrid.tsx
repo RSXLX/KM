@@ -92,19 +92,7 @@ export function SportsClassifiedGrid() {
             ))}
           </div>
 
-          {/* 二级：联赛 Chips */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {leagues.map(lg => {
-              const selected = activeLeagues.has(lg);
-              return (
-                <button
-                  key={lg}
-                  className={`px-3 py-1 rounded-full text-xs border ${selected ? 'ring-2 ring-primary bg-primary/10' : 'bg-muted'} hover:bg-accent`}
-                  onClick={() => toggleLeague(lg)}
-                >{lg}</button>
-              );
-            })}
-          </div>
+
 
           {/* 搜索框 */}
           <div className="flex items-center gap-3">
@@ -117,12 +105,11 @@ export function SportsClassifiedGrid() {
 
           <Separator className="my-4" />
 
-          <p className="text-xs text-muted-foreground">Tip: Use status toggle to switch Pre/In-Play. Click a card to open the betting drawer.</p>
         </CardContent>
       </Card>
 
       {/* 列表区：仅显示当前状态对应的数据 */}
-      <LiveInPlayGrid matches={matches} />
+      <LiveInPlayGrid matches={matches} status={activeStatus} />
     </div>
   );
 }

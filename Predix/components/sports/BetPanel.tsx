@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { ClosePositionModal } from './ClosePositionModal';
+import { Loader2 } from 'lucide-react';
 
 interface BetPanelProps {
   home: { code: string; name: string; odds: number };
@@ -18,7 +20,9 @@ interface BetPanelProps {
   onSelectTeam: (team: 'home' | 'away') => void;
   onAmountChange: (amount: number) => void;
   onMultiplierChange: (multiplier: number) => void;
-  onPlaceBet?: () => void;
+  onPlaceBet?: () => Promise<void>;
+  fixtureId?: string; // 添加fixtureId属性用于平仓功能
+  isLoading?: boolean; // 添加加载状态
 }
 
 export function BetPanel({
@@ -32,7 +36,9 @@ export function BetPanel({
   onSelectTeam,
   onAmountChange,
   onMultiplierChange,
-  onPlaceBet
+  onPlaceBet,
+  fixtureId,
+  isLoading = false
 }: BetPanelProps) {
   const HOME_COLOR = '#6A4BFF';
   const AWAY_COLOR = '#00E0A8';
@@ -49,7 +55,7 @@ export function BetPanel({
         <CardTitle className="text-center text-lg">Place Your Bet</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <Button
             variant={'outline'}
             className={`p-4 rounded-lg border-2 w-full border-[#6A4BFF] ${selectedTeam === 'home' ? 'bg-[#6A4BFF]/10' : 'hover:bg-[#6A4BFF]/10'}`}
@@ -75,9 +81,9 @@ export function BetPanel({
           </Button>
         </div>
 
-        <Separator className="my-4" />
+        <Separator className="my-3" />
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Wager Amount</label>
             <Input
@@ -110,18 +116,41 @@ export function BetPanel({
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex flex-col items-center space-y-3">
+      <CardFooter className="flex flex-col items-center space-y-2">
         <div className="text-center">
           <p className="text-sm text-muted-foreground">Estimated Payout</p>
           <p className="text-2xl font-bold text-primary">${payout.toFixed(2)}</p>
         </div>
-        <Button
-          className={`w-full ${selectedTeam === 'home' ? 'bg-[#6A4BFF] text-white hover:opacity-90' : selectedTeam === 'away' ? 'bg-[#00E0A8] text-white hover:opacity-90' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
-          disabled={!selectedTeam || amount <= 0}
-          onClick={onPlaceBet ? onPlaceBet : () => console.log('Place Bet', { selectedTeam, amount, multiplier, payout })}
-        >
-          Place Bet
-        </Button>
+        
+        <div className="w-full space-y-2">
+          <Button
+            className={`w-full ${selectedTeam === 'home' ? 'bg-[#6A4BFF] text-white hover:opacity-90' : selectedTeam === 'away' ? 'bg-[#00E0A8] text-white hover:opacity-90' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
+            disabled={!selectedTeam || amount <= 0 || isLoading}
+            onClick={onPlaceBet ? onPlaceBet : () => console.log('Place Bet', { selectedTeam, amount, multiplier, payout })}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                处理中...
+              </>
+            ) : (
+              'Place Bet'
+            )}
+          </Button>
+          
+          {/* 平仓按钮 */}
+          <ClosePositionModal 
+            fixtureId={fixtureId}
+            trigger={
+              <Button 
+                variant="outline" 
+                className="w-full border-orange-500 text-orange-600 hover:bg-orange-50"
+              >
+                平仓
+              </Button>
+            }
+          />
+        </div>
       </CardFooter>
     </Card>
   );
