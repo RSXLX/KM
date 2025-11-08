@@ -131,7 +131,7 @@ export function BetPanel({
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                处理中...
+                Handling
               </>
             ) : (
               'Place Bet'
@@ -143,10 +143,9 @@ export function BetPanel({
             fixtureId={fixtureId}
             trigger={
               <Button 
-                variant="outline" 
-                className="w-full border-orange-500 text-orange-600 hover:bg-orange-50"
+                className="w-full"
               >
-                平仓
+                Close position
               </Button>
             }
           />

@@ -1,13 +1,12 @@
-version: "3.9"
 services:
   db:
     image: postgres:15
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: kmarket
+      POSTGRES_DB: kmarket_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -22,9 +21,12 @@ services:
       RUST_LOG: info
       BIND_ADDR: 0.0.0.0
       BIND_PORT: 8080
-      DATABASE_URL: postgres://postgres:postgres@db:5432/kmarket
+      DATABASE_URL: postgres://postgres:postgres@db:5432/kmarket_db
       REDIS_URL: redis://redis:6379
       JWT_SECRET: replace_with_a_strong_secret
+      JWT_ISS: kmarket
+      JWT_AUD: kmarket_users
+      JWT_EXP_DAYS: 7
     depends_on:
       - db
       - redis

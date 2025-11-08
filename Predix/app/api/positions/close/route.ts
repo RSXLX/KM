@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       // 确定 close_price：优先 data.close_price，否则按选队的市场赔率回退
       const openPriceBps = openPos.selected_team === 1 ? (openPos.odds_home_bps ?? market.odds_home_bps) : (openPos.odds_away_bps ?? market.odds_away_bps);
       const fallbackCloseBps = openPos.selected_team === 1 ? market.odds_home_bps : market.odds_away_bps;
-      const closePriceBps = data.close_price ?? fallbackCloseBps;
+      const closePriceBps = data.close_price_bps ?? fallbackCloseBps;
       if (!openPriceBps || !closePriceBps) {
         await conn.rollback();
         return NextResponse.json({ ok: false, error: 'Missing odds to compute PnL', code: 'MISSING_ODDS' }, { status: 400 });
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       const multiplier = Number(openPos.multiplier_bps || 10000) / 10000;
       const deltaBps = Number(closePriceBps) - Number(openPriceBps);
       const grossPnl = Math.round(amount * (deltaBps / 10000) * multiplier);
-      const closeFee = Number(data.fee_paid ?? 0);
+      const closeFee = Number(data.close_fee_lamports ?? data.fee_paid ?? 0);
       const netPnl = grossPnl - closeFee;
 
       // 插入 CLOSE 记录
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 
       // 更新原始 OPEN 状态
       await conn.query(
-        `UPDATE positions SET status = 2 WHERE id = ?`,
+        `UPDATE positions SET status = 6, closed_at = NOW(), updated_at = NOW() WHERE id = ?`,
         [openPos.id]
       );
 
@@ -224,9 +224,7 @@ export async function POST(req: NextRequest) {
 
       // 更新原始开仓记录状态
       await pool.query(
-        `UPDATE positions 
-         SET status = 6, closed_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
+        `UPDATE positions SET status = 6, closed_at = NOW(), updated_at = NOW() WHERE id = ?`,
         [data.position_id]
       );
 

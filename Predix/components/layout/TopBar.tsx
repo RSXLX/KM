@@ -5,7 +5,8 @@ import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from './SearchBar';
 import { LanguageSwitcher } from './LanguageSwitcher';
-import { WalletButton } from '@/components/wallet/WalletButton';
+// remove direct WalletButton import; use no-SSR dynamic imports instead
+const EvmLoginButtonNoSSR = dynamic(() => import('@/components/wallet/EvmLoginButton').then(m => m.EvmLoginButton), { ssr: false });
 
 const WalletButtonNoSSR = dynamic(() => import('@/components/wallet/WalletButton').then(m => m.WalletButton), { ssr: false });
 
@@ -39,8 +40,10 @@ export function TopBar({ sidebarWidth = 256 }: TopBarProps) {
           {/* Language Switcher */}
           <LanguageSwitcher />
 
-          {/* Wallet Connection */}
+          {/* Wallet Connection (Solana) */}
           <WalletButtonNoSSR />
+          {/* EVM Login */}
+          <EvmLoginButtonNoSSR />
         </div>
       </div>
     </header>

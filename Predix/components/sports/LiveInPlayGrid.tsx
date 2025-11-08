@@ -1,13 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LiveMatchCard, LiveMatch } from './LiveMatchCard';
 import { InPlaySidebar } from '@/components/sports/InPlaySidebar';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSportsBetting } from '@/hooks/useSportsBetting';
-import { mockLiveMatches } from '@/lib/sports/mockLiveMatches';
-import { mockPreGameMatches } from '@/lib/sports/mockPreGameMatches';
-import { useLiveDataSimulator } from '@/hooks/useLiveDataSimulator';
+import { useInplayMarkets } from '@/hooks/useInplayMarkets';
 
 interface LiveInPlayGridProps {
   matches?: LiveMatch[];
@@ -18,9 +15,7 @@ interface LiveInPlayGridProps {
 type ApiMatch = LiveMatch & { name?: string; createdAt?: string; state?: string };
 
 export function LiveInPlayGrid({ matches, status = 'live' }: LiveInPlayGridProps) {
-  const [data, setData] = useState<LiveMatch[] | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data: inplayList, isLoading, error } = useInplayMarkets();
 
   // 侧边栏状态
   const [open, setOpen] = useState(false);
@@ -28,153 +23,32 @@ export function LiveInPlayGrid({ matches, status = 'live' }: LiveInPlayGridProps
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { liveMatches, isLoading } = useSportsBetting();
-  
-  // 根据状态选择合适的数据源
-  const baseData = status === 'live' 
-    ? (liveMatches?.length ? liveMatches : mockLiveMatches)
-    : mockPreGameMatches;
-  
-  // 只对 live 状态使用实时数据模拟器
-  const { matches: simulatedMatches, isRunning, startSimulation, stopSimulation } = useLiveDataSimulator(
-    baseData,
-    {
-      enabled: status === 'live', // 只在 live 状态启用模拟器
-      updateInterval: 3000,
-      autoStart: status === 'live'
-    }
-  );
+  // 直接使用后端 In-Play 数据并映射到 LiveMatch
+  const mappedFromApi: LiveMatch[] = useMemo(() => {
+    return (inplayList || []).map(item => {
+      const [homeNameRaw, awayNameRaw] = String(item.title || 'Home vs Away').split(/\s+vs\s+/i);
+      const homeName = (homeNameRaw || 'Home').trim();
+      const awayName = (awayNameRaw || 'Away').trim();
+      const liveOdds = item.moneyline ? { home: item.moneyline.home, away: item.moneyline.away, lastUpdated: item.timestamp } : undefined;
+      return {
+        id: String(item.market_id),
+        sport: item.category || 'Sports',
+        teams: { home: { name: homeName, score: item.score?.home }, away: { name: awayName, score: item.score?.away } },
+        status: { isLive: item.status?.isLive ?? true, time: item.status?.time ?? 'Live', phase: item.status?.phase, minute: item.status?.minute, second: item.status?.second, period: item.status?.period },
+        liveOdds,
+        marketUrl: `/sports-betting?fixtureId=${item.market_id}`,
+        league: item.category || 'Sports',
+      } as LiveMatch;
+    });
+  }, [inplayList]);
 
   // 仅在接口不可用时用于展示的回退示例
-  const fallbackSample: LiveMatch[] = [
-    {
-      id: 'nba-001',
-      sport: 'NBA',
-      teams: {
-        home: { name: 'Lakers', score: 102, code: 'LAL' },
-        away: { name: 'Celtics', score: 105, code: 'BOS' },
-      },
-      status: { 
-        time: 'Q4 02:15', 
-        isLive: true, 
-        phase: 'Q4',
-        minute: 10,
-        second: 45,
-        period: 4
-      },
-      liveOdds: { 
-        home: 2.1, 
-        away: 1.8,
-        lastUpdated: Date.now(),
-        trend: 'down'
-      },
-      marketUrl: '/sports-betting',
-      startTime: '2024-01-20T20:00:00Z',
-      venue: 'Crypto.com Arena',
-      league: 'NBA'
-    },
-    {
-      id: 'epl-002',
-      sport: 'Premier League',
-      teams: {
-        home: { name: 'Man City', score: 1, code: 'MCI' },
-        away: { name: 'Arsenal', score: 1, code: 'ARS' },
-      },
-      status: { 
-        time: "81'", 
-        isLive: true,
-        phase: 'Second Half',
-        minute: 81,
-        period: 2
-      },
-      liveOdds: { 
-        home: 2.6, 
-        draw: 3.1, 
-        away: 2.4,
-        lastUpdated: Date.now(),
-        trend: 'stable'
-      },
-      marketUrl: '/sports-betting',
-      startTime: '2024-01-20T15:00:00Z',
-      venue: 'Etihad Stadium',
-      league: 'Premier League'
-    },
-    {
-      id: 'nfl-003',
-      sport: 'NFL',
-      teams: {
-        home: { name: 'Jets', score: 17, code: 'NYJ' },
-        away: { name: 'Bengals', score: 21, code: 'CIN' },
-      },
-      status: { 
-        time: 'Q3 04:42', 
-        isLive: true, 
-        phase: 'Q3',
-        minute: 4,
-        second: 42,
-        period: 3
-      },
-      liveOdds: { 
-        home: 2.9, 
-        away: 1.5,
-        lastUpdated: Date.now(),
-        trend: 'up'
-      },
-      marketUrl: '/sports-betting',
-      startTime: '2024-01-20T18:00:00Z',
-      venue: 'MetLife Stadium',
-      league: 'NFL'
-    },
-  ];
+  const fallbackSample: LiveMatch[] = [];
 
-  useEffect(() => {
-    if (matches && matches.length > 0) return; // 已传入数据则不请求
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    async function fetchLive() {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch('/api/mock/live', {
-          cache: 'no-store',
-          next: { revalidate: 0 },
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json: ApiMatch[] = await res.json();
-        if (!cancelled) {
-          if (Array.isArray(json)) {
-            setData(json as LiveMatch[]);
-          } else {
-            throw new Error('Invalid data format');
-          }
-        }
-      } catch (e: any) {
-        const isAbort = e?.name === 'AbortError'
-          || (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError')
-          || (typeof e?.message === 'string' && /aborted|AbortError|The operation was aborted|ERR_ABORTED/i.test(e.message));
-        if (isAbort) {
-          return;
-        }
-        if (!cancelled) {
-          setError(e?.message ?? 'Fetch failed');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchLive();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [matches]);
+  // 独立请求逻辑移除：统一使用 useActiveMarkets 提供的 data/loading/error
 
   // 确定最终显示的数据
-  const displayMatches = matches || (status === 'live' ? simulatedMatches : baseData);
+  const displayMatches = matches || mappedFromApi;
   const items = displayMatches;
 
   // 根据 URL 参数恢复抽屉状态
@@ -209,7 +83,7 @@ export function LiveInPlayGrid({ matches, status = 'live' }: LiveInPlayGridProps
   };
 
   if (!items) {
-    if (loading) {
+    if (isLoading) {
       return <div className="text-muted-foreground">Loading in-play matches...</div>;
     }
     if (error) {
@@ -229,34 +103,6 @@ export function LiveInPlayGrid({ matches, status = 'live' }: LiveInPlayGridProps
 
   return (
     <>
-      {/* 实时数据模拟器控制面板 - 仅在 live 状态显示 */}
-      {status === 'live' && (
-        <div className="mb-4 flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-            <span className="text-sm font-medium">
-              实时数据模拟: {isRunning ? '运行中' : '已停止'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={startSimulation}
-              disabled={isRunning}
-              className="px-3 py-1 text-xs bg-green-600 text-white rounded disabled:opacity-50"
-            >
-              启动
-            </button>
-            <button
-              onClick={stopSimulation}
-              disabled={!isRunning}
-              className="px-3 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-50"
-            >
-              停止
-            </button>
-          </div>
-        </div>
-      )}
-      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {(items ?? []).map((m) => (
           <LiveMatchCard key={m.id} match={m} onOpen={onOpen} />

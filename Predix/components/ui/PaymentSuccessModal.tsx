@@ -60,7 +60,7 @@ export function PaymentSuccessModal({
           {/* Transaction Details */}
           <div className="space-y-4 mb-6">
             {amount && (
-              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-gray-600 dark:text-gray-400">下注金额</span>
                 <span className="font-medium text-gray-900 dark:text-white">
                   {amount} SOL
@@ -69,7 +69,7 @@ export function PaymentSuccessModal({
             )}
             
             {selectedTeam && (
-              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-gray-600 dark:text-gray-400">选择队伍</span>
                 <span className="font-medium text-gray-900 dark:text-white">
                   {selectedTeam}
@@ -78,7 +78,7 @@ export function PaymentSuccessModal({
             )}
 
             {payout && (
-              <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-gray-600 dark:text-gray-400">预期收益</span>
                 <span className="font-medium text-green-600 dark:text-green-400">
                   {payout.toFixed(2)} SOL

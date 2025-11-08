@@ -273,7 +273,7 @@ async function retryBetClosedEvent(eventData: any, signature: string): Promise<b
       body: JSON.stringify({
         position_id: positionId,
         wallet_address: eventData.user,
-        close_price: eventData.closePrice,
+        close_price_bps: eventData.closePrice,
         close_pnl: eventData.pnl,
         transaction_signature: signature
       })

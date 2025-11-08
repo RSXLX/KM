@@ -62,10 +62,10 @@ export default function TeamSelector({ onTeamSelect, selectedSport = 'football' 
           <div
             key={team.id}
             onClick={() => handleTeamSelect(team)}
-            className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+            className={`p-4 rounded-lg cursor-pointer bg-card text-card-foreground shadow-sm min-w-0 group transition-transform hover:shadow-lg hover:scale-[1.02] active:scale-[0.99] ${
               selectedTeam?.id === team.id
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted hover:bg-muted/80'
             }`}
           >
             <div className="flex items-center space-x-3">

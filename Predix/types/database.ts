@@ -59,7 +59,7 @@ export interface Position {
   // 盈亏信息
   pnl: number;
   fee_paid: number;
-  close_price?: number;
+  close_price_bps?: number;
   close_pnl?: number;
   
   // 时间戳
@@ -179,7 +179,8 @@ export interface CreatePositionRequest {
 export interface ClosePositionRequest {
   position_id: number;
   wallet_address: string;
-  close_price?: number;
+  close_price_bps?: number;
+  close_fee_lamports?: number;
   transaction_signature: string;
 }
 

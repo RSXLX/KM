@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
+import { listOrders, orderToLegacyPosition, claimOrder } from '@/lib/bets';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -92,6 +93,10 @@ export default function PositionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [closingPosition, setClosingPosition] = useState<number | null>(null);
   const [closePrice, setClosePrice] = useState('');
+  // 筛选与刷新
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Pending' | 'Resolved'>('ALL');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
 
   // 获取持仓数据
   const fetchPositions = async () => {
@@ -101,14 +106,34 @@ export default function PositionsPage() {
     setError(null);
     
     try {
-      const response = await fetch(`/api/positions?wallet_address=${wallet.publicKey.toBase58()}&limit=100`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || '获取持仓数据失败');
+      if (useNewApi) {
+        const status = statusFilter === 'Pending' ? 'pending' : (statusFilter === 'Resolved' ? 'confirmed' : undefined);
+        const resp = await listOrders({ userAddress: wallet.publicKey.toBase58(), status, page: 1, pageSize: 100 });
+        const items = resp.items.map(orderToLegacyPosition) as Position[];
+        setPositions(items);
+      } else {
+        const baseUrl = `/api/positions`;
+        const qs = new URLSearchParams();
+        qs.append('wallet_address', wallet.publicKey.toBase58());
+        qs.append('limit', '100');
+        if (fromDate) {
+          const fromIso = new Date(fromDate + 'T00:00:00.000Z').toISOString();
+          qs.append('from_date', fromIso as any);
+        }
+        if (toDate) {
+          const toIso = new Date(toDate + 'T23:59:59.999Z').toISOString();
+          qs.append('to_date', toIso as any);
+        }
+        if (statusFilter === 'Pending') {
+          qs.append('status', String(1));
+        }
+        const response = await fetch(`${baseUrl}?${qs.toString()}`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || '获取持仓数据失败');
+        }
+        setPositions(data.positions || []);
       }
-      
-      setPositions(data.positions || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -137,35 +162,52 @@ export default function PositionsPage() {
     fetchUserStats();
   }, [wallet.publicKey]);
 
+  // 应用筛选（重新拉取 + 前端过滤备用）
+  const handleApplyFilters = async () => {
+    await fetchPositions();
+  };
+
+  // 清除筛选
+  const handleClearFilters = async () => {
+    setStatusFilter('ALL');
+    setFromDate('');
+    setToDate('');
+    await fetchPositions();
+  };
+
   // 处理平仓
   const handleClosePosition = async (positionId: number) => {
     if (!wallet.publicKey) return;
     
     try {
-      const response = await fetch('/api/positions/close', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          position_id: positionId,
-          wallet_address: wallet.publicKey.toBase58(),
-          close_price: closePrice ? parseFloat(closePrice) * 1_000_000_000 : null, // 转换为lamports
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || '平仓失败');
+      if (useNewApi) {
+        const resp = await claimOrder(positionId);
+        if (!resp?.ok) throw new Error('领取失败');
+        await fetchPositions();
+        await fetchUserStats();
+        setClosingPosition(null);
+        setClosePrice('');
+      } else {
+        const response = await fetch('/api/positions/close', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            position_id: positionId,
+            wallet_address: wallet.publicKey.toBase58(),
+            close_price: closePrice ? parseFloat(closePrice) * 1_000_000_000 : null,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || '平仓失败');
+        }
+        await fetchPositions();
+        await fetchUserStats();
+        setClosingPosition(null);
+        setClosePrice('');
       }
-
-      // 刷新数据
-      await fetchPositions();
-      await fetchUserStats();
-      
-      setClosingPosition(null);
-      setClosePrice('');
       
     } catch (err: any) {
       setError(err.message);
@@ -174,10 +216,25 @@ export default function PositionsPage() {
 
   // 分离开仓和平仓记录
   const { openPositions, closedPositions } = useMemo(() => {
-    const open = positions.filter(p => p.position_type === 'OPEN' && p.status === 1);
-    const closed = positions.filter(p => p.position_type === 'CLOSE' || p.status !== 1);
+    // 先按日期过滤（使用 created_at 为主，若缺则回退 timestamp）
+    const inDateRange = (p: Position) => {
+      const t = new Date(p.created_at || p.timestamp);
+      const fromOk = fromDate ? t >= new Date(fromDate + 'T00:00:00.000Z') : true;
+      const toOk = toDate ? t <= new Date(toDate + 'T23:59:59.999Z') : true;
+      return fromOk && toOk;
+    };
+
+    const filtered = positions.filter(inDateRange);
+    let open = filtered.filter(p => p.position_type === 'OPEN' && p.status === 1);
+    let closed = filtered.filter(p => p.position_type === 'CLOSE' || p.status !== 1);
+
+    if (statusFilter === 'Pending') {
+      closed = [];
+    } else if (statusFilter === 'Resolved') {
+      open = [];
+    }
     return { openPositions: open, closedPositions: closed };
-  }, [positions]);
+  }, [positions, fromDate, toDate, statusFilter]);
 
   const renderPositionCard = (position: Position, showCloseButton = false) => (
     <Card key={position.id} className="mb-4">
@@ -320,7 +377,58 @@ export default function PositionsPage() {
 
   return (
     <ResponsiveLayout>
+      <div className="p-2 flex items-center gap-2">
+        <label className="text-sm">使用后端 Bets API</label>
+        <input type="checkbox" checked={useNewApi} onChange={(e) => { const v = e.target.checked; setUseNewApi(v); if (typeof window !== 'undefined') localStorage.setItem('useNewBetsAPI', v ? 'true' : 'false'); fetchPositions(); }} />
+      </div>
       <div className="p-6 space-y-6">
+        {/* 页面标题 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">My Contract</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              合并了投注与持仓数据，统一在此管理与查看。
+            </p>
+          </CardContent>
+        </Card>
+        {/* 筛选区域 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>筛选</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div>
+                <Label htmlFor="statusFilter">结果</Label>
+                <select
+                  id="statusFilter"
+                  className="mt-1 w-full border rounded h-9 px-2 bg-background"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                >
+                  <option value="ALL">全部</option>
+                  <option value="Pending">进行中</option>
+                  <option value="Resolved">已结算</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="fromDate">开始日期</Label>
+                <Input id="fromDate" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="toDate">结束日期</Label>
+                <Input id="toDate" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="default" onClick={handleApplyFilters}>应用</Button>
+                <Button variant="outline" onClick={handleClearFilters}>清除</Button>
+                <Button variant="ghost" onClick={fetchPositions}>刷新</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         {/* 用户统计 */}
         {userStats && (
           <Card>
@@ -359,7 +467,12 @@ export default function PositionsPage() {
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              <div className="mt-2">
+                <Button size="sm" variant="outline" onClick={fetchPositions}>重试</Button>
+              </div>
+            </AlertDescription>
           </Alert>
         )}
 

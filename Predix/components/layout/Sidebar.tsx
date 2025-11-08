@@ -43,7 +43,7 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose }: SidebarProps
   // Define navigation items
   const mainNav = [
     { id: 'home', label: t('nav.home'), href: '/', icon: 'Home' },
-    { id: 'account-bets', label: 'My Bets', href: '/account/bets', icon: 'BarChart3' },
+    { id: 'account-contract', label: 'My Contract', href: '/account/positions', icon: 'BarChart3' },
     { id: 'leaderboard', label: t('nav.leaderboard'), href: '/leaderboard', icon: 'Trophy' },
   ];
 
@@ -57,10 +57,12 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose }: SidebarProps
   ];
 
   return (
-    <aside className={cn(
-      'fixed left-0 top-0 h-full sidebar-dark transition-all duration-300 z-40',
-      isCollapsed ? 'w-16' : 'w-64'
-    )}>
+    <aside
+      className={cn(
+        'fixed left-0 top-0 h-full sidebar-dark transition-all duration-300 z-40 overflow-hidden',
+        isCollapsed ? 'w-16' : 'w-64'
+      )}
+    >
       {/* Logo and Toggle */}
       <div className="flex items-center justify-between p-4">
         {!isCollapsed && (
@@ -88,26 +90,34 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose }: SidebarProps
             key={item.id}
             href={item.href}
             className={cn(
-              'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors',
+              'flex items-center rounded-lg text-sm transition-colors',
+              isCollapsed ? 'justify-center p-2' : 'space-x-3 px-3 py-2',
               pathname === item.href ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted'
             )}
           >
-            {/* icon placeholder removed for brevity */}
-            <span>{item.label}</span>
+            {isCollapsed ? (
+              <span className="font-bold text-lg">
+                {item.label.charAt(0).toUpperCase()}
+              </span>
+            ) : (
+              <span className="min-w-0 truncate">{item.label}</span>
+            )}
           </Link>
         ))}
       </nav>
 
       {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-          {footer.map((f) => (
-            <Link key={f.id} href={f.href} className="hover:text-foreground transition-colors">
-              {t(f.id)}
-            </Link>
-          ))}
+      {!isCollapsed && (
+        <div className="absolute bottom-0 left-0 right-0 p-4">
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            {footer.map((f) => (
+              <Link key={f.id} href={f.href} className="hover:text-foreground transition-colors">
+                {t(f.id)}
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

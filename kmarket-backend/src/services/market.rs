@@ -2,7 +2,7 @@ use anyhow::Result;
 use sqlx::PgPool;
 use async_trait::async_trait;
 
-use crate::models::market::Market;
+use crate::models::market::{Market, MarketRow};
 
 /// 市场服务抽象，方便替换实现（DB 或内存）
 #[async_trait]
@@ -27,25 +27,24 @@ impl PgMarketService {
 #[async_trait]
 impl MarketService for PgMarketService {
     async fn list_markets(&self) -> Result<Vec<Market>> {
-        let rows: Vec<(i64, String, bool)> =
-            sqlx::query_as("SELECT id, name, active FROM markets ORDER BY id")
-                .fetch_all(&self.pool)
-                .await?;
+        let rows: Vec<MarketRow> = sqlx::query_as(
+            "SELECT id, market_id, title, category, status, created_at, opened_at, closed_at, settled_at, winning_option, description, admin_user_id FROM markets ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|(id, name, active)| Market { id, name, active })
-            .collect())
+        Ok(rows.into_iter().map(Market::from).collect())
     }
 
     async fn get_market(&self, id: i64) -> Result<Option<Market>> {
-        let row: Option<(i64, String, bool)> =
-            sqlx::query_as("SELECT id, name, active FROM markets WHERE id = $1")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<MarketRow> = sqlx::query_as(
+            "SELECT id, market_id, title, category, status, created_at, opened_at, closed_at, settled_at, winning_option, description, admin_user_id FROM markets WHERE market_id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
 
-        Ok(row.map(|(id, name, active)| Market { id, name, active }))
+        Ok(row.map(Market::from))
     }
 }
 

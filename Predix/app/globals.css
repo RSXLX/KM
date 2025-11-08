@@ -89,7 +89,7 @@
 
 /* Custom styles for dark tech theme */
 .tech-card {
-  @apply bg-card rounded-xl backdrop-blur-sm;
+  @apply bg-card rounded-xl backdrop-blur-sm border-0;
   background: linear-gradient(145deg, hsl(var(--card)) 0%, hsl(var(--muted)) 100%);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }

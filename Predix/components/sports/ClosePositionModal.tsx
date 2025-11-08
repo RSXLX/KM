@@ -27,6 +27,7 @@ import {
   X,
   Loader2
 } from 'lucide-react';
+import { listOrders, orderToLegacyPosition, claimOrder } from '@/lib/bets';
 
 interface Position {
   id: number;
@@ -66,6 +67,15 @@ function bpsToMultiplier(bps: number): number {
   return bps / 10000;
 }
 
+function formatSol(lamports: number): string {
+  return lamportsToSol(lamports).toFixed(4);
+}
+
+function estimatePayoutLamports(amountLamports: number, closePriceBps: number | null): number | null {
+  if (!closePriceBps || closePriceBps <= 0) return null;
+  return Math.floor(amountLamports * (closePriceBps / 10000));
+}
+
 export function ClosePositionModal({ 
   marketAddress, 
   fixtureId, 
@@ -83,25 +93,13 @@ export function ClosePositionModal({
   // 获取用户的开仓持仓
   const fetchOpenPositions = async () => {
     if (!wallet.publicKey || !open) return;
-    
     setLoading(true);
     setError(null);
-    
     try {
-      let url = `/api/positions?wallet_address=${wallet.publicKey.toBase58()}&status=1&position_type=OPEN`;
-      
-      if (marketAddress) {
-        url += `&market_address=${marketAddress}`;
-      }
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || '获取持仓数据失败');
-      }
-      
-      setPositions(data.positions || []);
+      const resp = await listOrders({ userAddress: wallet.publicKey.toBase58(), status: 'pending', page: 1, pageSize: 100 });
+      const items = resp.items.map(orderToLegacyPosition) as Position[];
+      const filtered = marketAddress ? items.filter(p => String(p.market_address) === String(marketAddress)) : items;
+      setPositions(filtered);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -121,22 +119,9 @@ export function ClosePositionModal({
     setError(null);
     
     try {
-      const response = await fetch('/api/positions/close', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          position_id: positionId,
-          wallet_address: wallet.publicKey.toBase58(),
-          close_price: closePrice ? parseFloat(closePrice) * 1_000_000_000 : null,
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || '平仓失败');
+      const resp = await claimOrder(positionId);
+      if (!resp?.ok) {
+        throw new Error('平仓失败');
       }
 
       // 刷新持仓数据
@@ -160,90 +145,112 @@ export function ClosePositionModal({
     }
   };
 
-  const renderPositionCard = (position: Position) => (
-    <Card key={position.id} className="mb-4">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <h4 className="font-medium">
-              {position.market?.home_team} vs {position.market?.away_team}
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              选择: {position.selected_team === 1 ? position.market?.home_team : position.market?.away_team}
-            </p>
+  const renderPositionCard = (position: Position) => {
+    const closeBpsNum = closePrice ? parseInt(closePrice, 10) : null;
+    const payoutLamports = estimatePayoutLamports(position.amount, closeBpsNum);
+    const pnlLamports = payoutLamports !== null ? (payoutLamports - position.amount) : null;
+  
+    return (
+      <Card key={position.id} className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h4 className="font-medium">
+                {position.market?.home_team} vs {position.market?.away_team}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                选择: {position.selected_team === 1 ? position.market?.home_team : position.market?.away_team}
+              </p>
+            </div>
+            <Badge variant="outline">
+              <Clock className="w-3 h-3 mr-1" />
+              持仓中
+            </Badge>
           </div>
-          <Badge variant="outline">
-            <Clock className="w-3 h-3 mr-1" />
-            持仓中
-          </Badge>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <p className="text-xs text-muted-foreground">下注金额</p>
-            <p className="font-medium">{lamportsToSol(position.amount).toFixed(4)} SOL</p>
+  
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-muted-foreground">下注金额</p>
+              <p className="font-medium">{lamportsToSol(position.amount).toFixed(4)} SOL</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">杠杆倍数</p>
+              <p className="font-medium">{bpsToMultiplier(position.multiplier_bps)}x</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">预期收益</p>
+              <p className="font-medium">{lamportsToSol(position.payout_expected).toFixed(4)} SOL</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">当前盈亏</p>
+              <p className={`font-medium flex items-center ${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {position.pnl >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                {lamportsToSol(position.pnl).toFixed(4)} SOL
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">杠杆倍数</p>
-            <p className="font-medium">{bpsToMultiplier(position.multiplier_bps)}x</p>
+  
+          <div className="text-xs text-muted-foreground mb-3">
+            创建时间: {new Date(position.created_at).toLocaleString()}
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">预期收益</p>
-            <p className="font-medium">{lamportsToSol(position.payout_expected).toFixed(4)} SOL</p>
+  
+          <Separator className="mb-3" />
+  
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor={`closePrice-${position.id}`} className="text-sm">
+                平仓赔率 (bps, 可选)
+              </Label>
+              <Input
+                id={`closePrice-${position.id}`}
+                type="number"
+                step="1"
+                placeholder="留空使用市场价格"
+                value={closePrice}
+                onChange={(e) => setClosePrice(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                留空将使用当前市场价格进行平仓
+              </p>
+  
+              {closeBpsNum && payoutLamports !== null && (
+                <div className="mt-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center text-foreground">
+                      <DollarSign className="w-3 h-3 mr-1" />
+                      预估平仓收益: {formatSol(payoutLamports)} SOL
+                    </div>
+                    <div className={`flex items-center ${pnlLamports !== null && pnlLamports >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {pnlLamports !== null && pnlLamports >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                      预估盈亏: {pnlLamports !== null ? formatSol(pnlLamports) : '--'} SOL
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">估算不含手续费，实际以后端结算为准</p>
+                </div>
+              )}
+            </div>
+  
+            <Button 
+              onClick={() => handleClosePosition(position.id)}
+              disabled={closingPosition === position.id}
+              className="w-full"
+              variant="destructive"
+            >
+              {closingPosition === position.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  处理中...
+                </>
+              ) : (
+                '确认平仓'
+              )}
+            </Button>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">当前盈亏</p>
-            <p className={`font-medium flex items-center ${position.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {position.pnl >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-              {lamportsToSol(position.pnl).toFixed(4)} SOL
-            </p>
-          </div>
-        </div>
-
-        <div className="text-xs text-muted-foreground mb-3">
-          创建时间: {new Date(position.created_at).toLocaleString()}
-        </div>
-
-        <Separator className="mb-3" />
-
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor={`closePrice-${position.id}`} className="text-sm">
-              平仓价格 (SOL, 可选)
-            </Label>
-            <Input
-              id={`closePrice-${position.id}`}
-              type="number"
-              step="0.0001"
-              placeholder="留空使用市场价格"
-              value={closePrice}
-              onChange={(e) => setClosePrice(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              留空将使用当前市场价格进行平仓
-            </p>
-          </div>
-
-          <Button 
-            onClick={() => handleClosePosition(position.id)}
-            disabled={closingPosition === position.id}
-            className="w-full"
-            variant="destructive"
-          >
-            {closingPosition === position.id ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                处理中...
-              </>
-            ) : (
-              '确认平仓'
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (!wallet.publicKey) {
     return (

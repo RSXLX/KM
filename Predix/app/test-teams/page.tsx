@@ -61,7 +61,7 @@ export default function TestTeamsPage() {
 
             {/* Random Team Display */}
             {randomTeam && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="mt-4 p-4 bg-green-50 border border-border rounded-lg">
                 <h3 className="font-semibold text-green-800 mb-2">随机球队:</h3>
                 <div className="text-sm text-green-700">
                   <p><span className="font-medium">球队:</span> {randomTeam.name}</p>

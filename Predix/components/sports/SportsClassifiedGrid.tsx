@@ -68,11 +68,11 @@ export function SportsClassifiedGrid() {
           {/* 状态切换：Pre / In-Play */}
           <div className="flex flex-wrap gap-2 mb-4">
             <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeStatus === 'pre' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
+              className={`px-3 py-1 rounded-md text-sm  ${activeStatus === 'pre' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
               onClick={() => setActiveStatus('pre')}
             >Pre-Game</button>
             <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeStatus === 'live' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
+              className={`px-3 py-1 rounded-md text-sm  ${activeStatus === 'live' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
               onClick={() => setActiveStatus('live')}
             >In-Play</button>
           </div>
@@ -80,13 +80,13 @@ export function SportsClassifiedGrid() {
           {/* 一级：运动类型 Tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
             <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeSport === 'All' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
+              className={`px-3 py-1 rounded-md text-sm  ${activeSport === 'All' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
               onClick={() => setActiveSport('All')}
             >All</button>
             {sports.map(sp => (
               <button
                 key={sp}
-                className={`px-3 py-1 rounded-md text-sm border ${activeSport === sp ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
+                className={`px-3 py-1 rounded-md text-sm  ${activeSport === sp ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
                 onClick={() => setActiveSport(sp)}
               >{sp}</button>
             ))}

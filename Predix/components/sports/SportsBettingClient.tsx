@@ -2,8 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSportsBetting } from '@/hooks/useSportsBetting';
-import { OddsChart } from '@/components/sports/OddsChart';
-import { LiveOddsChart } from '@/components/sports/LiveOddsChart';
+import { useActiveMarkets } from '@/hooks/useActiveMarkets';
+import { useOdds } from '@/hooks/useOdds';
+import dynamic from 'next/dynamic';
+const OddsChart = dynamic(() => import('@/components/sports/OddsChart').then(m => m.OddsChart), { ssr: false });
+const LiveOddsChart = dynamic(() => import('@/components/sports/LiveOddsChart').then(m => m.LiveOddsChart), { ssr: false });
 import { LiveMatchIndicator } from '@/components/sports/LiveMatchIndicator';
 import { BetPanel } from '@/components/sports/BetPanel';
 import { MatchList } from '@/components/sports/MatchList';
@@ -37,6 +40,23 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
     placeBet,
   } = useSportsBetting(fixtureId);
 
+  // Integrate active markets + odds data flow
+  const { data: activeList, isLoading: isActiveLoading, error: activeError } = useActiveMarkets({ forceRefresh: true });
+  // Choose marketId: prefer fixtureId, else first active market
+  const selectedMarketId: string | undefined = (() => {
+    if (fixtureId) {
+      // Try match by string equality or numeric parse
+      const found = (activeList || []).find(m => String(m.market_id) === String(fixtureId));
+      if (found) return String(found.market_id);
+      const n = parseInt(String(fixtureId), 10);
+      if (!Number.isNaN(n)) return String(n);
+      return String(fixtureId);
+    }
+    const first = (activeList || [])[0];
+    return first ? String(first.market_id) : undefined;
+  })();
+  const { data: oddsData, isLoading: isOddsLoading } = useOdds(selectedMarketId, { refetchInterval: 5000 });
+
   const wallet = useWallet();
   
   // Loading state for betting operations
@@ -53,6 +73,10 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
   }>({});
 
   useEffect(() => {
+    // Keep match data aligned with selected market
+    if (selectedMarketId && String(matchData.matchId) !== String(selectedMarketId)) {
+      loadFixtureById(selectedMarketId);
+    }
     if (typeof isLiveSignal === 'boolean') {
       if (isLiveSignal && !isLive) startLive();
       if (!isLiveSignal && isLive) stopLive();
@@ -60,7 +84,7 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
     return () => {
       stopLive();
     };
-  }, [isLiveSignal]);
+  }, [isLiveSignal, selectedMarketId]);
 
   const sampleMatches = [
     { id: '101', teams: { home: 'Lakers', away: 'Celtics' }, odds: { home: 1.8, away: 2.1 } },
@@ -68,8 +92,15 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
     { id: '103', teams: { home: 'Arsenal', away: 'Chelsea' }, odds: { home: 2.2, away: 1.7 } }
   ];
 
+  // Display odds: prefer hook odds, fallback to local matchData odds
+  const displayOdds = {
+    home: oddsData?.home ?? matchData.odds.home,
+    away: oddsData?.away ?? matchData.odds.away,
+    liquidation: matchData.odds.liquidation,
+  };
+
   return (
-    <div className="min-h-screen text-foreground">
+    <div className="text-foreground">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <Card className="tech-card mb-4">
@@ -114,14 +145,14 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
                 homeCode={matchData.teams.home.code}
                 awayCode={matchData.teams.away.code}
                 data={liveChartData}
-                liquidation={matchData.odds.liquidation}
+                liquidation={displayOdds.liquidation}
                 selectedTeam={matchData.wager.selectedTeam}
               />
             ) : (
               <OddsChart
                 homeCode={matchData.teams.home.code}
                 awayCode={matchData.teams.away.code}
-                odds={matchData.odds}
+                odds={displayOdds}
                 selectedTeam={matchData.wager.selectedTeam}
               />
             )}
@@ -129,18 +160,18 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
 
           <div className="lg:col-span-1">
             <BetPanel
-              home={{ code: matchData.teams.home.code, name: matchData.teams.home.name, odds: matchData.odds.home }}
-              away={{ code: matchData.teams.away.code, name: matchData.teams.away.name, odds: matchData.odds.away }}
+              home={{ code: matchData.teams.home.code, name: matchData.teams.home.name, odds: displayOdds.home }}
+              away={{ code: matchData.teams.away.code, name: matchData.teams.away.name, odds: displayOdds.away }}
               selectedTeam={matchData.wager.selectedTeam}
               amount={matchData.wager.amount}
               multiplier={matchData.wager.multiplier}
               payout={matchData.wager.payout}
-              liquidation={matchData.odds.liquidation}
+              liquidation={displayOdds.liquidation}
               onSelectTeam={selectTeam}
               onAmountChange={updateWagerAmount}
               onMultiplierChange={updateMultiplier}
               fixtureId={fixtureId}
-              isLoading={isBetting}
+              isLoading={isBetting || isActiveLoading || isOddsLoading}
               onPlaceBet={async () => {
                 setIsBetting(true);
                 try {

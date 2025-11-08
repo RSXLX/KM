@@ -25,3 +25,5 @@ pub async fn init_pg_pool(cfg: &AppConfig) -> Option<PgPool> {
         }
     }
 }
+
+pub mod repo;

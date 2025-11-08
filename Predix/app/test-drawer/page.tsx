@@ -85,7 +85,7 @@ export default function TestDrawerPage() {
 
         {/* Current Selection Info */}
         {selectedMatch && (
-          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="mt-6 p-4 bg-green-50 border border-border rounded-lg">
             <h3 className="font-semibold text-green-800 mb-2">当前选择的比赛：</h3>
             <p className="text-green-700">
               <span className="font-medium">{selectedMatch.teams.home.name}</span> vs{' '}

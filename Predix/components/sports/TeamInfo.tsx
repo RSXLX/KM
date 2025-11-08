@@ -87,14 +87,14 @@ export function TeamInfo({ team }: TeamInfoProps) {
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-2">
               <div 
-                className="w-6 h-6 rounded-full border-2 border-gray-200"
+                className="w-6 h-6 rounded-full border-2 border-border"
                 style={{ backgroundColor: team.colors.primary }}
               />
               <span className="text-xs text-muted-foreground">主色</span>
             </div>
             <div className="flex items-center space-x-2">
               <div 
-                className="w-6 h-6 rounded-full border-2 border-gray-200"
+                className="w-6 h-6 rounded-full border-2 border-border"
                 style={{ backgroundColor: team.colors.secondary }}
               />
               <span className="text-xs text-muted-foreground">副色</span>

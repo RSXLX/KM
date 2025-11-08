@@ -265,19 +265,16 @@ export class EventListener {
 
     try {
       // 调用开仓API
-      const response = await fetch('/api/positions', {
+      const { apiFetch } = await import('@/lib/api');
+      const response = await apiFetch('/bets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wallet_address: eventData.user.toString(),
-          market_address: eventData.market.toString(),
-          selected_team: eventData.team,
-          amount: eventData.amount,
-          multiplier_bps: eventData.multiplierBps,
-          odds_home_bps: eventData.team === 1 ? eventData.oddsBps : null,
-          odds_away_bps: eventData.team === 2 ? eventData.oddsBps : null,
-          transaction_signature: signature
-        })
+          marketId: Number(eventData.market),
+          option: eventData.team,
+          amount: String(eventData.amount),
+          odds: eventData.oddsBps,
+        }),
+        ui: { showLoading: false, toastOnError: true }
       });
 
       if (!response.ok) {
@@ -312,16 +309,10 @@ export class EventListener {
       const positionId = (positionRows as any[])[0].id;
 
       // 调用平仓API
-      const response = await fetch('/api/positions/close', {
+      const { apiFetch } = await import('@/lib/api');
+      const response = await apiFetch(`/bets/${positionId}/claim`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          position_id: positionId,
-          wallet_address: eventData.user.toString(),
-          close_price: eventData.closePrice,
-          close_pnl: eventData.pnl,
-          transaction_signature: signature
-        })
+        ui: { showLoading: false, toastOnError: true }
       });
 
       if (!response.ok) {
@@ -368,15 +359,11 @@ export class EventListener {
   private async handleMarketResolvedEvent(eventData: EventMarketResolved, signature: string, slot: number) {
     try {
       // 调用市场更新API
-      const response = await fetch('/api/markets', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          market_address: eventData.market.toString(),
-          state: 3, // Resolved
-          result: eventData.result,
-          resolved_at: new Date().toISOString()
-        })
+      const { apiFetch } = await import('@/lib/api');
+      const response = await apiFetch(`/admin/markets/${Number(eventData.market)}/settle`, {
+        method: 'POST',
+        body: JSON.stringify({ winning_option: eventData.result }),
+        ui: { showLoading: false, toastOnError: true }
       });
 
       if (!response.ok) {

@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM rust:1.81 AS builder
 WORKDIR /app
 COPY . .

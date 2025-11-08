@@ -13,7 +13,8 @@
     "db:migrate": "mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME < schema.sql",
     "db:setup": "npm run db:migrate",
     "db:test": "tsx scripts/test-database.ts",
-    "db:test-system": "tsx scripts/test-full-database-system.ts"
+    "db:test-system": "tsx scripts/test-full-database-system.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",
@@ -63,6 +64,7 @@
   "devDependencies": {
     "eslint": "^8.55.0",
     "eslint-config-next": "^14.0.4",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "vitest": "^1.5.0"
   }
 }

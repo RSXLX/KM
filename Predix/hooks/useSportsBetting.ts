@@ -135,54 +135,34 @@ export function useSportsBetting(initialId?: string) {
 
   const loadFixtureById = async (id: string) => {
     try {
-      // 优先使用本地预设 mock 数据
-      const local = await (async () => {
-        try {
-          const mod = await import('@/lib/sports/mockFixtures');
-          // dynamic import to avoid SSR issues
-          return (mod as any).getFixtureById?.(id);
-        } catch {
-          return undefined;
-        }
-      })();
+      // 从后端市场详情与赔率获取数据
+      const { apiFetch } = await import('@/lib/api');
+      const detail = await apiFetch<any>(`/markets/${id}`);
+      const market = detail?.market;
+      const oddsJson = detail?.odds;
 
-      if (local) {
-        const homeOdds = parseFloat(String(local.preOdds?.home ?? 0)) || matchData.odds.home;
-        const awayOdds = parseFloat(String(local.preOdds?.away ?? 0)) || matchData.odds.away;
-        const liquidationBase = parseFloat((Math.max(homeOdds, awayOdds) * 0.85 || 2.2).toFixed(2));
-        baseLiquidationRef.current = liquidationBase;
-        setMatchData(prev => ({
-          ...prev,
-          matchId: String(local.id ?? id),
-          marketAddress: local.marketAddress || `market_${id}`, // 从本地数据获取或生成默认值
-          teams: {
-            home: { code: abbr(String(local.homeTeam ?? 'HOME')), name: String(local.homeTeam ?? 'Home') },
-            away: { code: abbr(String(local.awayTeam ?? 'AWAY')), name: String(local.awayTeam ?? 'Away') },
-          },
-          odds: {
-            home: homeOdds,
-            away: awayOdds,
-            liquidation: computeLiquidation(liquidationBase, prev.wager.multiplier)
-          }
-        }));
-        return; // 已命中本地数据，结束
-      }
+      // 从标题解析队名（格式："Home vs Away"）
+      const title: string = String(market?.title ?? 'Home vs Away');
+      const [homeNameRaw, awayNameRaw] = title.split(/\s+vs\s+/i);
+      const homeName = (homeNameRaw || 'Home').trim();
+      const awayName = (awayNameRaw || 'Away').trim();
 
-      // 回退到 API 请求（开发环境可能不可用）
-      const res = await fetch(`/api/mock/fixtures/${id}`);
-      if (!res.ok) throw new Error('Failed to load mock fixture');
-      const data = await res.json();
-      const homeOdds = parseFloat(String(data.odds?.home ?? 0)) || matchData.odds.home;
-      const awayOdds = parseFloat(String(data.odds?.away ?? 0)) || matchData.odds.away;
+      // 赔率适配：优先 moneyline，其次兼容旧字段 odds_a/odds_b（bps→小数）
+      const moneyline = oddsJson?.moneyline;
+      const oddsA = oddsJson?.odds_a;
+      const oddsB = oddsJson?.odds_b;
+      const homeOdds = typeof moneyline?.home === 'number' ? moneyline.home : (typeof oddsA === 'number' ? (oddsA / 100) : matchData.odds.home);
+      const awayOdds = typeof moneyline?.away === 'number' ? moneyline.away : (typeof oddsB === 'number' ? (oddsB / 100) : matchData.odds.away);
       const liquidationBase = parseFloat((Math.max(homeOdds, awayOdds) * 0.85 || 2.2).toFixed(2));
       baseLiquidationRef.current = liquidationBase;
+
       setMatchData(prev => ({
         ...prev,
-        matchId: String(data.fixture?.id ?? id),
-        marketAddress: data.marketAddress || `market_${id}`, // 从 API 获取或生成默认值
+        matchId: String(market?.market_id ?? id),
+        marketAddress: `market_${id}`,
         teams: {
-          home: { code: abbr(String(data.teams?.home?.name ?? 'HOME')), name: String(data.teams?.home?.name ?? 'Home') },
-          away: { code: abbr(String(data.teams?.away?.name ?? 'AWAY')), name: String(data.teams?.away?.name ?? 'Away') },
+          home: { code: abbr(homeName), name: homeName },
+          away: { code: abbr(awayName), name: awayName },
         },
         odds: {
           home: homeOdds,
@@ -191,7 +171,7 @@ export function useSportsBetting(initialId?: string) {
         }
       }));
     } catch (e) {
-      console.warn('[useSportsBetting] load fixture failed:', e);
+      console.warn('[useSportsBetting] load fixture failed, fallback to random:', e);
       generateRandomOdds();
     }
   };

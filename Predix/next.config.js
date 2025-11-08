@@ -8,7 +8,14 @@ const nextConfig = {
   distDir: isDev ? '.next' : 'out',
   images: {
     unoptimized: !isDev,
-    domains: ['images.unsplash.com', 'via.placeholder.com', 'coindesk.com', 'espn.com']
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'via.placeholder.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'coindesk.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.coindesk.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'espn.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'www.espn.com', pathname: '/**' },
+    ]
   },
   experimental: {
     optimizeCss: false

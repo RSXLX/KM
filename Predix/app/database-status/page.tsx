@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/api';
 
 interface DatabaseHealth {
   status: 'healthy' | 'unhealthy';
@@ -32,23 +33,21 @@ export default function DatabaseStatusPage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/database/health', {
-        method: detailed ? 'POST' : 'GET',
-        headers: detailed ? {
-          'Content-Type': 'application/json',
-        } : {},
-        body: detailed ? JSON.stringify({
-          includeTableInfo: true,
-          testWrite: true,
-        }) : undefined,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setHealth(data);
+      const data = await apiFetch<any>('/readyz', { timeoutMs: 5000, ui: { showLoading: true, toastOnError: true } });
+      // 适配显示结构
+      const mapped: DatabaseHealth = {
+        status: data?.ready ? 'healthy' : 'unhealthy',
+        timestamp: new Date().toISOString(),
+        database: {
+          connected: !!data?.requires ? (data?.requires?.database === 'ok') : true,
+          name: 'kmarket_db',
+          tables: undefined,
+          error: data?.ready ? undefined : 'dependencies not ready'
+        },
+        performance: {},
+        detailed: detailed ? { tableCount: undefined, writeTest: false, connectionPool: true } : undefined,
+      };
+      setHealth(mapped);
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误');
     } finally {
