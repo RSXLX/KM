@@ -1,0 +1,29 @@
+[package]
+name = "kmarket-backend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "kmarket_backend"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "chrono", "uuid"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+dotenv = "0.15"
+rand = "0.8"
+actix-web = "4.4"
+actix-cors = "0.7"
+tracing-actix-web = "0.7"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+[dev-dependencies]
+actix-rt = "2.9"
