@@ -3,10 +3,13 @@ anchor/**/target/
 anchor/**/test-ledger/
 
 # Next.js/Node artifacts (fallback at repo root)
-Predix/node_modules/
-Predix/.next/
-Predix/out/
-Predix/coverage/
+fronted/node_modules/
+fronted/.next/
+fronted/out/
+fronted/coverage/
+
+# Rust build artifacts
+kmarket-backend/target/
 
 # IDE/OS
 .vscode/

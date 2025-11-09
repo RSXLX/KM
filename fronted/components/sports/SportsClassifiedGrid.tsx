@@ -1,16 +1,55 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { LiveInPlayGrid } from '@/components/sports/LiveInPlayGrid';
 import type { LiveMatch } from '@/components/sports/LiveMatchCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { mockFixtures } from '@/lib/sports/mockFixtures';
+import { mockFixtures, type MockFixture } from '@/lib/sports/mockFixtures';
 import { enrichFixture } from '@/lib/sports/classification';
+import apiClient from '@/lib/apiClient';
 
 export function SportsClassifiedGrid() {
-  const enriched = useMemo(() => mockFixtures.map(f => ({ f, c: enrichFixture(f) })), []);
+  // 从后端加载 fixtures，失败时回退到本地 mock
+  const [fixtures, setFixtures] = useState<MockFixture[]>(mockFixtures);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [activeSport, setActiveSport] = useState<string>('All');
+  const [activeLeagues, setActiveLeagues] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState<string>('');
+  const [activeStatus, setActiveStatus] = useState<'pre' | 'live'>('pre');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true); setError(null);
+      try {
+        const res = await apiClient.get('/sports/fixtures', {
+          baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
+          query: { status: activeStatus, page: 1, limit: 50 },
+          timeoutMs: 10000,
+        });
+        const apiFixtures: MockFixture[] = res?.data?.fixtures ?? [];
+        if (!cancelled && Array.isArray(apiFixtures) && apiFixtures.length > 0) {
+          setFixtures(apiFixtures);
+        } else if (!cancelled) {
+          setFixtures(mockFixtures);
+        }
+      } catch (e) {
+        console.warn('[SportsClassifiedGrid] load fixtures failed, fallback to mock:', e);
+        if (!cancelled) setFixtures(mockFixtures);
+        if (!cancelled) setError('加载后端赛程失败，已回退到本地数据');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [activeStatus]);
+
+  const enriched = useMemo(() => fixtures.map(f => ({ f, c: enrichFixture(f) })), [fixtures]);
 
   const sports = useMemo(() => {
     const set = new Set<string>();
@@ -24,10 +63,7 @@ export function SportsClassifiedGrid() {
     return Array.from(set);
   }, [enriched]);
 
-  const [activeSport, setActiveSport] = useState<string>('All');
-  const [activeLeagues, setActiveLeagues] = useState<Set<string>>(new Set());
-  const [query, setQuery] = useState<string>('');
-  const [activeStatus, setActiveStatus] = useState<'pre' | 'live'>('pre');
+  // 状态声明已上移以便触发后端加载
 
   const toggleLeague = (lg: string) => {
     const next = new Set(activeLeagues);
@@ -65,6 +101,8 @@ export function SportsClassifiedGrid() {
           <CardTitle className="text-lg">Browse Sports Fixtures</CardTitle>
         </CardHeader>
         <CardContent>
+          {loading && (<div className="text-sm text-muted-foreground mb-2">Loading fixtures...</div>)}
+          {error && (<div className="text-sm text-red-600 mb-2">{error}</div>)}
           {/* 状态切换：Pre / In-Play */}
           <div className="flex flex-wrap gap-2 mb-4">
             <button
