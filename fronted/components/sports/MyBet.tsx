@@ -63,7 +63,7 @@ export function MyBet({ fixtureId, className, refreshTrigger }: MyBetProps) {
     setError(null);
     
     try {
-      let url = `/api/bets?wallet_address=${wallet.publicKey.toBase58()}`;
+      let url = `/api/positions?wallet_address=${wallet.publicKey.toBase58()}`;
       
       if (fixtureId) {
         url += `&fixture_id=${fixtureId}`;
@@ -81,7 +81,7 @@ export function MyBet({ fixtureId, className, refreshTrigger }: MyBetProps) {
       }
 
       // 转换数据格式
-      const formattedBets: BetInfo[] = (data.bets || []).map((bet: any) => {
+      const formattedBets: BetInfo[] = ((data.bets ?? data.positions) || []).map((bet: any) => {
         // 计算赔率
         let odds = 1.85; // 默认赔率
         if (bet.odds_home_bps && bet.odds_away_bps) {

@@ -61,7 +61,9 @@ pub async fn get_fixtures(state: web::Data<AppState>, query: web::Query<Fixtures
     let total: i64 = row.try_get("total").unwrap_or(0);
 
     // Build DATA SQL similarly
-    let mut data_sql = String::from("SELECT id, title, sport, league, home_team, away_team, kickoff_time, status, pre_odds, live_odds FROM sports_fixtures_v");
+    // Return business id (market_id) as id to the frontend for consistency
+    // Cast to TEXT to avoid type mismatch when mapping to String in JSON response
+    let mut data_sql = String::from("SELECT market_id::TEXT AS id, title, sport, league, home_team, away_team, kickoff_time, status, pre_odds, live_odds FROM sports_fixtures_v");
     let mut idx2 = 1;
     let mut has_where2 = false;
     if let Some(status) = &query.status {

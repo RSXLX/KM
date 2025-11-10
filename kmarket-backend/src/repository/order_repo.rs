@@ -107,6 +107,39 @@ impl OrderRepository {
         Ok(rec)
     }
 
+    /// Cancel order with close fields (price, pnl, closed_at) and audit, with optimistic version check
+    pub async fn cancel_with_close_fields(&self, id: i64, expected_version: i32, close_price: Option<f64>, close_pnl: Option<f64>) -> Result<Order, DataAccessError> {
+        if id <= 0 { return Err(DataAccessError::InvalidArgument("id".into())); }
+        let mut tx = self.db_pool.begin().await.map_err(translate_sqlx_error)?;
+        let rec = sqlx::query_as::<_, Order>(
+            r#"
+            UPDATE orders
+            SET status = 'cancelled', version = version + 1,
+                closed_at = NOW(), close_price = COALESCE($1, close_price), close_pnl = COALESCE($2, close_pnl)
+            WHERE id = $3 AND version = $4
+            RETURNING id, order_id, user_id, market_id, amount::TEXT as amount, odds::TEXT as odds,
+                      option, status, version, created_at, updated_at
+            "#
+        )
+        .bind(close_price)
+        .bind(close_pnl)
+        .bind(id)
+        .bind(expected_version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(translate_sqlx_error)?
+        .ok_or(DataAccessError::ConcurrencyConflict("orders".into()))?;
+
+        sqlx::query(r#"INSERT INTO order_audits (order_id, action, detail) VALUES ($1, 'cancelled', '{}'::jsonb)"#)
+            .bind(rec.order_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(translate_sqlx_error)?;
+
+        tx.commit().await.map_err(translate_sqlx_error)?;
+        Ok(rec)
+    }
+
     /// Get orders for a user by address
     pub async fn get_user_orders_by_address(&self, address: &str) -> Result<Vec<Order>, DataAccessError> {
         if address.trim().is_empty() { return Err(DataAccessError::InvalidArgument("address".into())); }

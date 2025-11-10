@@ -21,9 +21,13 @@ export async function POST(req: Request) {
     let slot: number | null = null;
     try {
       const conn = new Connection(rpcUrl, 'confirmed');
-      const tx = await conn.getTransaction(data.signature, { maxSupportedTransactionVersion: 0 });
+      // 快速返回：为避免阻塞，限制链上校验为 ~2.5 秒
+      const tx: any = await Promise.race([
+        conn.getTransaction(data.signature, { maxSupportedTransactionVersion: 0 }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+      ]);
       if (!tx) {
-        console.warn('[wallet-ledger] transaction not found for signature:', data.signature);
+        console.warn('[wallet-ledger] transaction not found or verify timeout:', data.signature);
       } else {
         feeLamports = tx.meta?.fee ?? null;
         slot = (tx as any)?.slot ?? null;

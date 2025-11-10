@@ -6,13 +6,13 @@ import type { LiveMatch } from '@/components/sports/LiveMatchCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { mockFixtures, type MockFixture } from '@/lib/sports/mockFixtures';
+import { fetchFixtures, type MockFixture } from '@/lib/sports/mockFixtures';
 import { enrichFixture } from '@/lib/sports/classification';
 import apiClient from '@/lib/apiClient';
 
 export function SportsClassifiedGrid() {
   // 从后端加载 fixtures，失败时回退到本地 mock
-  const [fixtures, setFixtures] = useState<MockFixture[]>(mockFixtures);
+  const [fixtures, setFixtures] = useState<MockFixture[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,21 +26,11 @@ export function SportsClassifiedGrid() {
     async function load() {
       setLoading(true); setError(null);
       try {
-        const res = await apiClient.get('/sports/fixtures', {
-          baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
-          query: { status: activeStatus, page: 1, limit: 50 },
-          timeoutMs: 10000,
-        });
-        const apiFixtures: MockFixture[] = res?.data?.fixtures ?? [];
-        if (!cancelled && Array.isArray(apiFixtures) && apiFixtures.length > 0) {
-          setFixtures(apiFixtures);
-        } else if (!cancelled) {
-          setFixtures(mockFixtures);
-        }
+        const apiFixtures = await fetchFixtures({ status: activeStatus, page: 1, limit: 50 });
+        if (!cancelled) setFixtures(apiFixtures);
       } catch (e) {
-        console.warn('[SportsClassifiedGrid] load fixtures failed, fallback to mock:', e);
-        if (!cancelled) setFixtures(mockFixtures);
-        if (!cancelled) setError('加载后端赛程失败，已回退到本地数据');
+        console.warn('[SportsClassifiedGrid] load fixtures failed:', e);
+        if (!cancelled) setError('加载后端赛程失败');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,7 +79,11 @@ export function SportsClassifiedGrid() {
       teams: { home: { name: f.homeTeam }, away: { name: f.awayTeam } },
       status: { time: f.kickoffTime, isLive: f.status === 'live' },
       liveOdds: (f.status === 'live' ? f.liveOdds : f.preOdds) || undefined,
-      marketUrl: `/sports-betting?fixtureId=${encodeURIComponent(f.id)}&autoOpen=1`
+      // 统一 fixtureId 为数值（尾部数字或原始ID作为回退）
+      marketUrl: (() => {
+        const tail = String(f.id.match(/\d+$/)?.[0] || f.id);
+        return `/sports-betting?fixtureId=${encodeURIComponent(tail)}&autoOpen=1`;
+      })()
     }));
   }, [filtered]);
 

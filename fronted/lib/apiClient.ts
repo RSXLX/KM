@@ -22,7 +22,9 @@ const inFlight = new Map<string, Promise<any>>();
 
 function buildUrl(path: string, query?: RequestOptions['query'], base?: string): string {
   const baseUrl = base ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
-  const full = path.startsWith('http') ? path : `${baseUrl}${path}`;
+  const isAbsolute = path.startsWith('http');
+  const isFrontendApi = path.startsWith('/api/'); // 前端本地 API 路径应直接走同源，不叠加后端 baseUrl
+  const full = isAbsolute ? path : (isFrontendApi ? path : `${baseUrl}${path}`);
   const url = new URL(full, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   if (query) {
     Object.entries(query).forEach(([k, v]) => {

@@ -71,22 +71,83 @@ pub async fn get_frontend_markets(state: web::Data<AppState>, query: web::Query<
 #[derive(Deserialize)]
 pub struct AddressPath { pub address: String }
 
-pub async fn get_frontend_positions(state: web::Data<AppState>, path: web::Path<AddressPath>) -> Result<HttpResponse> {
-    // Query positions_v
-    let rows = sqlx::query(
-        r#"
-        SELECT id, user_id, market_id, wallet_address, market_address, nonce,
-               selected_team, amount::DOUBLE PRECISION as amount, multiplier_bps, status,
-               timestamp, created_at, updated_at
-        FROM positions_v
-        WHERE wallet_address = $1
-        ORDER BY created_at DESC
-        "#
-    )
-    .bind(&path.address)
-    .fetch_all(&state.db_pool)
-    .await
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+#[derive(Deserialize)]
+pub struct PositionsQuery {
+    pub status: Option<String>,      // 'current' | 'history' | 'all' | 'open' | 'closed'
+    pub fixture_id: Option<String>,  // market_id (numeric) 或 market_address
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+pub async fn get_frontend_positions(
+    state: web::Data<AppState>,
+    path: web::Path<AddressPath>,
+    query: web::Query<PositionsQuery>,
+) -> Result<HttpResponse> {
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let offset = (page - 1) * limit;
+
+    // COUNT SQL
+    let mut count_sql = String::from("SELECT COUNT(*) AS total FROM positions_v WHERE wallet_address = $1");
+    let mut idx = 2;
+    if let Some(status) = &query.status {
+        match status.as_str() {
+            "current" | "open" => { count_sql.push_str(&format!(" AND status = ${}", idx)); idx += 1; }
+            "history" | "closed" => { count_sql.push_str(&format!(" AND status <> ${}", idx)); idx += 1; }
+            _ => {}
+        }
+    }
+    if let Some(fid) = &query.fixture_id {
+        // 数字 -> 过滤 market_id；否则过滤 market_address
+        if fid.chars().all(|c| c.is_ascii_digit()) {
+            count_sql.push_str(&format!(" AND market_id = ${}", idx)); idx += 1;
+        } else {
+            count_sql.push_str(&format!(" AND market_address = ${}", idx)); idx += 1;
+        }
+    }
+    tracing::info!(target: "kmarket_backend", "SQL COUNT (positions): {}", count_sql);
+    let mut qc = sqlx::query(&count_sql).bind(&path.address);
+    if let Some(status) = &query.status {
+        match status.as_str() { "current" | "open" => { qc = qc.bind(1i32); }, "history" | "closed" => { qc = qc.bind(1i32); }, _ => {} }
+    }
+    if let Some(fid) = &query.fixture_id {
+        if fid.chars().all(|c| c.is_ascii_digit()) { qc = qc.bind(fid.parse::<i64>().unwrap_or(0)); } else { qc = qc.bind(fid.to_string()); }
+    }
+    let row = qc.fetch_one(&state.db_pool).await.map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    let total: i64 = row.try_get("total").unwrap_or(0);
+
+    // DATA SQL
+    let mut data_sql = String::from(
+        "SELECT id, user_id, market_id, wallet_address, market_address, nonce, selected_team, amount::DOUBLE PRECISION as amount, multiplier_bps, status, timestamp, created_at, updated_at FROM positions_v WHERE wallet_address = $1"
+    );
+    let mut idx2 = 2;
+    if let Some(status) = &query.status {
+        match status.as_str() {
+            "current" | "open" => { data_sql.push_str(&format!(" AND status = ${}", idx2)); idx2 += 1; }
+            "history" | "closed" => { data_sql.push_str(&format!(" AND status <> ${}", idx2)); idx2 += 1; }
+            _ => {}
+        }
+    }
+    if let Some(fid) = &query.fixture_id {
+        if fid.chars().all(|c| c.is_ascii_digit()) {
+            data_sql.push_str(&format!(" AND market_id = ${}", idx2)); idx2 += 1;
+        } else {
+            data_sql.push_str(&format!(" AND market_address = ${}", idx2)); idx2 += 1;
+        }
+    }
+    data_sql.push_str(&format!(" ORDER BY created_at DESC LIMIT ${} OFFSET ${}", idx2, idx2 + 1));
+    tracing::info!(target: "kmarket_backend", "SQL DATA (positions): {}", data_sql);
+
+    let mut qd = sqlx::query(&data_sql).bind(&path.address);
+    if let Some(status) = &query.status {
+        match status.as_str() { "current" | "open" => { qd = qd.bind(1i32); }, "history" | "closed" => { qd = qd.bind(1i32); }, _ => {} }
+    }
+    if let Some(fid) = &query.fixture_id {
+        if fid.chars().all(|c| c.is_ascii_digit()) { qd = qd.bind(fid.parse::<i64>().unwrap_or(0)); } else { qd = qd.bind(fid.to_string()); }
+    }
+    qd = qd.bind(limit).bind(offset);
+    let rows = qd.fetch_all(&state.db_pool).await.map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
     let positions: Vec<FrontendPosition> = rows.iter().map(|row| {
         crate::utils::mappers::map_position_row_to_frontend(
@@ -106,12 +167,17 @@ pub async fn get_frontend_positions(state: web::Data<AppState>, path: web::Path<
         )
     }).collect();
 
-    Ok(HttpResponse::Ok().json(ApiResponse::success(positions)))
+    let body = serde_json::json!({
+        "positions": positions,
+        "pagination": { "page": page, "limit": limit, "total": total, "total_pages": if limit > 0 { (total + limit - 1) / limit } else { 0 } }
+    });
+    Ok(HttpResponse::Ok().json(ApiResponse::success(body)))
 }
 
 #[derive(Deserialize)]
 pub struct CreateFrontendPositionRequest {
     pub wallet_address: String,
+    pub fixture_id: Option<i64>,
     pub market_address: Option<String>,
     pub selected_team: i32,
     pub amount: f64,
@@ -123,6 +189,7 @@ pub struct CreateFrontendPositionRequest {
 
 pub async fn create_frontend_position(state: web::Data<AppState>, body: web::Json<CreateFrontendPositionRequest>) -> Result<HttpResponse> {
     let req = body.into_inner();
+    tracing::info!(target: "kmarket_backend", "create_frontend_position: wallet={}, market_addr={:?}, team={}, amount={}, multiplier_bps={}, odds_h_bps={:?}, odds_a_bps={:?}", req.wallet_address, req.market_address, req.selected_team, req.amount, req.multiplier_bps, req.odds_home_bps, req.odds_away_bps);
     if req.wallet_address.trim().is_empty() || req.amount <= 0.0 || (req.selected_team != 1 && req.selected_team != 2) {
         return Ok(HttpResponse::BadRequest().json(ApiResponse::<()>::error("INVALID_ARGS", "Missing or invalid fields")));
     }
@@ -134,14 +201,38 @@ pub async fn create_frontend_position(state: web::Data<AppState>, body: web::Jso
             Err(e) => return Ok(HttpResponse::InternalServerError().json(ApiResponse::<()>::error("USER_CREATE_FAILED", &format!("{}", e))))
         }
     };
-    let market_id: i64 = if let Some(addr) = req.market_address.as_ref() {
+    // 统一：优先使用业务ID fixture_id (market_id)，其次使用 market_address，再次解析 'market_<id>'
+    let market_id: i64 = if let Some(fid) = req.fixture_id {
+        let row = sqlx::query("SELECT id FROM markets WHERE market_id = $1")
+            .bind(fid)
+            .fetch_optional(&state.db_pool)
+            .await
+            .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        match row { Some(r) => r.try_get("id").unwrap_or(0), None => 0 }
+    } else if let Some(addr) = req.market_address.as_ref() {
+        // 1) 地址查找
         let row = sqlx::query("SELECT id FROM markets WHERE market_address = $1")
             .bind(addr)
             .fetch_optional(&state.db_pool)
             .await
             .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-        match row { Some(r) => r.try_get("id").unwrap_or(0), None => 0 }
+        let mut mid = match row { Some(r) => r.try_get("id").unwrap_or(0), None => 0 };
+        // 2) 兼容 'market_<id>'
+        if mid == 0 {
+            if let Some(stripped) = addr.strip_prefix("market_") {
+                if let Ok(n) = stripped.parse::<i64>() {
+                    let row2 = sqlx::query("SELECT id FROM markets WHERE market_id = $1")
+                        .bind(n)
+                        .fetch_optional(&state.db_pool)
+                        .await
+                        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+                    mid = match row2 { Some(r) => r.try_get("id").unwrap_or(0), None => 0 };
+                }
+            }
+        }
+        mid
     } else { 0 };
+    tracing::info!(target: "kmarket_backend", "create_frontend_position: resolved market_id={}", market_id);
     if market_id == 0 { return Ok(HttpResponse::NotFound().json(ApiResponse::<()>::error("MARKET_NOT_FOUND", "market_address not found"))); }
     let mut odds = (req.multiplier_bps as f64) / 10000.0;
     if req.selected_team == 1 { if let Some(bps) = req.odds_home_bps { odds = (bps as f64) / 10000.0; }}
@@ -161,7 +252,7 @@ pub struct CloseFrontendPositionRequest { pub position_id: i64, pub wallet_addre
 pub async fn close_frontend_position(state: web::Data<AppState>, body: web::Json<CloseFrontendPositionRequest>) -> Result<HttpResponse> {
     let req = body.into_inner();
     if req.position_id <= 0 { return Ok(HttpResponse::BadRequest().json(ApiResponse::<()>::error("INVALID_ARGS", "position_id required"))); }
-    let order = sqlx::query("SELECT id, version FROM orders WHERE id = $1")
+    let order = sqlx::query("SELECT id, version, amount::DOUBLE PRECISION as amount FROM orders WHERE id = $1")
         .bind(req.position_id)
         .fetch_optional(&state.db_pool)
         .await
@@ -169,8 +260,12 @@ pub async fn close_frontend_position(state: web::Data<AppState>, body: web::Json
     if order.is_none() { return Ok(HttpResponse::NotFound().json(ApiResponse::<()>::error("POSITION_NOT_FOUND", "position not found"))); }
     let row = order.unwrap();
     let version: i32 = row.try_get("version").unwrap_or(0);
+    let amount: f64 = row.try_get("amount").unwrap_or(0.0);
+    // 简化 PnL：若提供 close_price 则 pnl = close_price - amount；否则 pnl = 0（可扩展为市场价）
+    let close_price = req.close_price.unwrap_or(amount);
+    let close_pnl = close_price - amount;
     let repo = OrderRepository::new(state.db_pool.clone());
-    match repo.update_status_with_version(req.position_id, version, OrderStatus::Cancelled).await {
+    match repo.cancel_with_close_fields(req.position_id, version, Some(close_price), Some(close_pnl)).await {
         Ok(updated) => Ok(HttpResponse::Ok().json(ApiResponse::success(updated))),
         Err(e) => Ok(HttpResponse::InternalServerError().json(ApiResponse::<()>::error("POSITION_CLOSE_FAILED", &format!("{}", e))))
     }

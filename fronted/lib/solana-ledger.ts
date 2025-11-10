@@ -28,19 +28,25 @@ export async function sendWithLedger(
   const direction = deltaLamports < 0 ? 'debit' : 'credit';
 
   const { apiClient } = await import('@/lib/apiClient');
-  await apiClient.post('/api/wallet-ledger', {
-    wallet: addr.toBase58(),
-    signature,
-    network: process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet',
-    rpcUrl: endpoint,
-    direction,
-    deltaLamports,
-    deltaSol: Math.abs(deltaLamports) / LAMPORTS_PER_SOL,
-    reason: meta?.reason || 'transfer',
-    fixtureId: meta?.fixtureId,
-    extra: meta?.extra,
-    timestamp: new Date().toISOString(),
-  }, { timeoutMs: 10000 });
+  try {
+    await apiClient.post('/api/wallet-ledger', {
+      wallet: addr.toBase58(),
+      signature,
+      network: process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet',
+      rpcUrl: endpoint,
+      direction,
+      deltaLamports,
+      deltaSol: Math.abs(deltaLamports) / LAMPORTS_PER_SOL,
+      reason: meta?.reason || 'transfer',
+      fixtureId: meta?.fixtureId,
+      extra: meta?.extra,
+      timestamp: new Date().toISOString(),
+    }, { timeoutMs: 30000, dedup: false });
+  } catch (e) {
+    // 不阻断下注流程：后端/本地存储失败或网络超时仅记录警告
+    //todo:  后期需修改为同步
+    console.warn('[wallet-ledger] store failed (non-blocking):', (e as any)?.message || e);
+  }
 
   return { signature, deltaLamports, direction };
 }

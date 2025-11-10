@@ -10,6 +10,7 @@ import { MatchList } from '@/components/sports/MatchList';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { PaymentSuccessModal } from '@/components/ui/PaymentSuccessModal';
+import { ConfirmBetModal } from '@/components/sports/ConfirmBetModal';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { sendWithLedger } from '@/lib/solana-ledger';
 import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
@@ -41,6 +42,7 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
   
   // Loading state for betting operations
   const [isBetting, setIsBetting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   
   // Payment success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -69,7 +71,7 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
   ];
 
   return (
-    <div className="min-h-screen text-foreground">
+    <div className="min-h-screen text-foreground relative z-[210]">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <Card className="tech-card mb-4">
@@ -128,7 +130,7 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
           </div>
 
           <div className="lg:col-span-1">
-            <BetPanel
+          <BetPanel
               home={{ code: matchData.teams.home.code, name: matchData.teams.home.name, odds: matchData.odds.home }}
               away={{ code: matchData.teams.away.code, name: matchData.teams.away.name, odds: matchData.odds.away }}
               selectedTeam={matchData.wager.selectedTeam}
@@ -142,62 +144,8 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
               fixtureId={fixtureId}
               isLoading={isBetting}
               onPlaceBet={async () => {
-                setIsBetting(true);
-                try {
-                  // Keep local UI record
-                  const result = placeBet();
-
-                  // Ensure wallet is connected
-                  if (!wallet.publicKey) {
-                    try { await wallet.connect?.(); } catch {}
-                  }
-                  if (!wallet.publicKey) {
-                    alert('Please connect your Solana wallet.');
-                    return;
-                  }
-
-                  // Build a minimal memo transaction to incur fee and record bet meta
-                  const memoProgramId = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-                  const payload = {
-                    type: 'bet',
-                    matchId: matchData.matchId,
-                    team: matchData.wager.selectedTeam,
-                    amount: matchData.wager.amount,
-                    multiplier: matchData.wager.multiplier,
-                    payout: matchData.wager.payout,
-                    ts: Date.now(),
-                  };
-                  const data = Buffer.from(JSON.stringify(payload));
-                  const ix = new TransactionInstruction({ keys: [], programId: memoProgramId, data });
-                  const tx = new Transaction().add(ix);
-
-                  const res = await sendWithLedger(
-                    { publicKey: wallet.publicKey!, sendTransaction: wallet.sendTransaction },
-                    async () => tx,
-                    { reason: 'bet', fixtureId: matchData.matchId }
-                  );
-                  console.log('Bet ledger recorded:', res);
-                  
-                  // Show success modal with transaction details
-                  setSuccessModalData({
-                    transactionSignature: res.signature,
-                    amount: matchData.wager.amount,
-                    selectedTeam: matchData.wager.selectedTeam === 'home' 
-                      ? matchData.teams.home.name 
-                      : matchData.teams.away.name,
-                    payout: matchData.wager.payout,
-                    network: process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet'
-                  });
-                  setShowSuccessModal(true);
-                  
-                  // 调用成功回调，触发数据刷新
-                  onBetSuccess?.();
-                } catch (e: any) {
-                  console.error('sendWithLedger failed:', e);
-                  alert('Transaction failed: ' + (e?.message || 'unknown error'));
-                } finally {
-                  setIsBetting(false);
-                }
+                // 二次确认弹窗
+                setShowConfirm(true);
               }}
             />
           </div>
@@ -206,6 +154,97 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
         {/* Match list */}
         <></>
         
+        {/* Confirm Bet Modal */}
+        <ConfirmBetModal
+          open={showConfirm}
+          onClose={() => setShowConfirm(false)}
+          fixtureId={matchData.matchId}
+          teamLabel={matchData.wager.selectedTeam === 'home' ? 'Home' : matchData.wager.selectedTeam === 'away' ? 'Away' : '-'}
+          teamName={matchData.wager.selectedTeam === 'home' ? matchData.teams.home.name : matchData.wager.selectedTeam === 'away' ? matchData.teams.away.name : '-'}
+          teamCode={matchData.wager.selectedTeam === 'home' ? matchData.teams.home.code : matchData.wager.selectedTeam === 'away' ? matchData.teams.away.code : '-'}
+          amount={matchData.wager.amount}
+          multiplier={matchData.wager.multiplier}
+          oddsSelected={matchData.wager.selectedTeam === 'home' ? matchData.odds.home : matchData.wager.selectedTeam === 'away' ? matchData.odds.away : 0}
+          payout={matchData.wager.payout}
+          onConfirm={async () => {
+            setIsBetting(true);
+            try {
+              const disableLedger = (process.env.NEXT_PUBLIC_DISABLE_LEDGER || 'false') === 'true';
+              let signature = `dev_${Date.now()}`;
+              let walletAddr = wallet.publicKey?.toBase58() || `dev_wallet_${Date.now()}`;
+              if (!disableLedger && wallet.publicKey) {
+                // 进行链上记账（Memo），产生交易签名
+                const memoProgramId = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+                const payload = {
+                  type: 'bet',
+                  matchId: matchData.matchId,
+                  team: matchData.wager.selectedTeam,
+                  amount: matchData.wager.amount,
+                  multiplier: matchData.wager.multiplier,
+                  payout: matchData.wager.payout,
+                  ts: Date.now(),
+                };
+                const data = Buffer.from(JSON.stringify(payload));
+                const ix = new TransactionInstruction({ keys: [], programId: memoProgramId, data });
+                const tx = new Transaction().add(ix);
+                const res = await sendWithLedger(
+                  { publicKey: wallet.publicKey!, sendTransaction: wallet.sendTransaction },
+                  async () => tx,
+                  { reason: 'bet', fixtureId: matchData.matchId }
+                );
+                signature = res.signature;
+                walletAddr = wallet.publicKey!.toBase58();
+              }
+
+              // 调用后端开仓，写入数据库
+              const selectedTeamNum = matchData.wager.selectedTeam === 'home' ? 1 : 2;
+              const multiplierBps = Math.round(matchData.wager.multiplier * 10000);
+              const oddsHomeBps = Math.round(matchData.odds.home * 10000);
+              const oddsAwayBps = Math.round(matchData.odds.away * 10000);
+              const fixtureNumeric = Number(matchData.matchId);
+              const marketAddress = matchData.marketAddress || (Number.isFinite(fixtureNumeric) ? `market_${fixtureNumeric}` : `market_${matchData.matchId}`);
+              const { apiClient } = await import('@/lib/apiClient');
+              const json = await apiClient.post('/api/positions', {
+                wallet_address: walletAddr,
+                fixture_id: Number.isFinite(fixtureNumeric) ? fixtureNumeric : undefined,
+                market_address: marketAddress,
+                selected_team: selectedTeamNum,
+                amount: matchData.wager.amount,
+                multiplier_bps: multiplierBps,
+                odds_home_bps: oddsHomeBps,
+                odds_away_bps: oddsAwayBps,
+                transaction_signature: signature,
+              }, { timeoutMs: 10000 });
+              if (json?.ok === false) {
+                throw new Error(json?.error || 'Backend create position failed');
+              }
+
+              // 本地 UI 记录（用于即时反馈）
+              placeBet();
+
+              // 展示成功信息
+              setSuccessModalData({
+                transactionSignature: res.signature,
+                amount: matchData.wager.amount,
+                selectedTeam: matchData.wager.selectedTeam === 'home'
+                  ? matchData.teams.home.name
+                  : matchData.teams.away.name,
+                payout: matchData.wager.payout,
+                network: process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet'
+              });
+              setShowSuccessModal(true);
+
+              // 外部回调：刷新列表/统计
+              onBetSuccess?.();
+            } catch (e: any) {
+              console.error('place bet failed:', e);
+              alert('Place bet failed: ' + (e?.message || 'unknown error'));
+            } finally {
+              setIsBetting(false);
+            }
+          }}
+        />
+
         {/* Payment Success Modal */}
         <PaymentSuccessModal
           isOpen={showSuccessModal}

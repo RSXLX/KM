@@ -4,3 +4,7 @@ pub mod orders;
 pub mod compat;
 pub mod users;
 pub mod sports;
+pub mod admin_auth;
+pub mod admin_markets;
+pub mod admin_orders;
+pub mod admin_users;

@@ -135,53 +135,25 @@ export function useSportsBetting(initialId?: string) {
 
   const loadFixtureById = async (id: string) => {
     try {
-      // 优先使用本地预设 mock 数据
-      const local = await (async () => {
-        try {
-          const mod = await import('@/lib/sports/mockFixtures');
-          // dynamic import to avoid SSR issues
-          return (mod as any).getFixtureById?.(id);
-        } catch {
-          return undefined;
-        }
-      })();
-
-      if (local) {
-        const homeOdds = parseFloat(String(local.preOdds?.home ?? 0)) || matchData.odds.home;
-        const awayOdds = parseFloat(String(local.preOdds?.away ?? 0)) || matchData.odds.away;
-        const liquidationBase = parseFloat((Math.max(homeOdds, awayOdds) * 0.85 || 2.2).toFixed(2));
-        baseLiquidationRef.current = liquidationBase;
-        setMatchData(prev => ({
-          ...prev,
-          matchId: String(local.id ?? id),
-          marketAddress: local.marketAddress || `market_${id}`, // 从本地数据获取或生成默认值
-          teams: {
-            home: { code: abbr(String(local.homeTeam ?? 'HOME')), name: String(local.homeTeam ?? 'Home') },
-            away: { code: abbr(String(local.awayTeam ?? 'AWAY')), name: String(local.awayTeam ?? 'Away') },
-          },
-          odds: {
-            home: homeOdds,
-            away: awayOdds,
-            liquidation: computeLiquidation(liquidationBase, prev.wager.multiplier)
-          }
-        }));
-        return; // 已命中本地数据，结束
-      }
-
-      // 回退到 API 请求（开发环境可能不可用）
-      const { apiClient } = await import('@/lib/apiClient');
-      const data = await apiClient.get(`/api/mock/fixtures/${id}`, { timeoutMs: 8000 });
-      const homeOdds = parseFloat(String(data.odds?.home ?? 0)) || matchData.odds.home;
-      const awayOdds = parseFloat(String(data.odds?.away ?? 0)) || matchData.odds.away;
+      // 从后端真实数据获取（通过 /api/sports/fixtures 代理）
+      const { getFixtureById } = await import('@/lib/sports/mockFixtures');
+      const fx = await getFixtureById(id);
+      if (!fx) throw new Error('fixture_not_found');
+      const pre = fx.preOdds ?? null;
+      const live = fx.liveOdds ?? null;
+      const homeOdds = parseFloat(String((live || pre)?.home ?? 0)) || matchData.odds.home;
+      const awayOdds = parseFloat(String((live || pre)?.away ?? 0)) || matchData.odds.away;
       const liquidationBase = parseFloat((Math.max(homeOdds, awayOdds) * 0.85 || 2.2).toFixed(2));
       baseLiquidationRef.current = liquidationBase;
+      const fid = String(fx.id ?? id);
+      const tail = fid.replace(/^market_/i, '').replace(/^0+/, '');
       setMatchData(prev => ({
         ...prev,
-        matchId: String(data.fixture?.id ?? id),
-        marketAddress: data.marketAddress || `market_${id}`, // 从 API 获取或生成默认值
+        matchId: fid,
+        marketAddress: `market_${tail}`,
         teams: {
-          home: { code: abbr(String(data.teams?.home?.name ?? 'HOME')), name: String(data.teams?.home?.name ?? 'Home') },
-          away: { code: abbr(String(data.teams?.away?.name ?? 'AWAY')), name: String(data.teams?.away?.name ?? 'Away') },
+          home: { code: abbr(String(fx.homeTeam ?? 'HOME')), name: String(fx.homeTeam ?? 'Home') },
+          away: { code: abbr(String(fx.awayTeam ?? 'AWAY')), name: String(fx.awayTeam ?? 'Away') },
         },
         odds: {
           home: homeOdds,

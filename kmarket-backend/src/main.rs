@@ -58,6 +58,25 @@ async fn main() -> std::io::Result<()> {
                     .route("/users/{id}", web::put().to(routes::users::update_user_email))
                     .route("/users/{id}", web::delete().to(routes::users::delete_user))
                     .route("/sports/fixtures", web::get().to(routes::sports::get_fixtures))
+                    .route("/admin/auth/login", web::post().to(routes::admin_auth::login))
+                    // Admin markets
+                    .route("/admin/markets", web::get().to(routes::admin_markets::list_markets))
+                    .route("/admin/markets", web::post().to(routes::admin_markets::create_market))
+                    .route("/admin/markets/{id}", web::put().to(routes::admin_markets::update_market))
+                    .route("/admin/markets/{id}/deactivate", web::post().to(routes::admin_markets::deactivate_market))
+                    .route("/admin/markets/{id}/settle", web::post().to(routes::admin_markets::settle_market))
+                    // Admin orders
+                    .route("/admin/orders", web::get().to(routes::admin_orders::list_orders))
+                    .route("/admin/orders/{id}", web::get().to(routes::admin_orders::get_order_detail))
+                    .route("/admin/orders/{id}/cancel", web::post().to(routes::admin_orders::cancel_order))
+                    .route("/admin/orders/{id}/settle", web::post().to(routes::admin_orders::settle_order))
+                    // Admin users
+                    .route("/admin/users", web::get().to(routes::admin_users::list_users))
+                    .route("/admin/users/{id}", web::get().to(routes::admin_users::get_user_detail))
+                    .route("/admin/users/{id}/status", web::put().to(routes::admin_users::update_user_status))
+                    .route("/admin/users/{id}/blacklist", web::post().to(routes::admin_users::set_blacklist))
+                    .route("/admin/users/{id}/whitelist", web::post().to(routes::admin_users::set_whitelist))
+                    .route("/admin/users/{id}/stats", web::get().to(routes::admin_users::get_user_stats))
                     // 兼容输出：前端 database.ts 对齐结构
                     .service(
                         web::scope("/compat")

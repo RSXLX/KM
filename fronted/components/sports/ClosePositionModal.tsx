@@ -80,28 +80,46 @@ export function ClosePositionModal({
   const [closingPosition, setClosingPosition] = useState<number | null>(null);
   const [closePrice, setClosePrice] = useState('');
 
+  // 获取钱包地址（无钱包时使用开发地址）
+  const getWalletAddr = (): string => {
+    const disableLedger = (process.env.NEXT_PUBLIC_DISABLE_LEDGER || 'false') === 'true';
+    const addr = wallet.publicKey?.toBase58();
+    if (addr) return addr;
+    if (disableLedger) {
+      try {
+        const cached = typeof window !== 'undefined' ? localStorage.getItem('dev_wallet_address') : null;
+        if (cached) return cached;
+        const gen = `dev_wallet_${Date.now()}`;
+        if (typeof window !== 'undefined') localStorage.setItem('dev_wallet_address', gen);
+        return gen;
+      } catch {
+        return `dev_wallet_${Date.now()}`;
+      }
+    }
+    return '';
+  };
+
   // 获取用户的开仓持仓
   const fetchOpenPositions = async () => {
-    if (!wallet.publicKey || !open) return;
+    if (!open) return;
     
     setLoading(true);
     setError(null);
     
     try {
-      let url = `/api/positions?wallet_address=${wallet.publicKey.toBase58()}&status=1&position_type=OPEN`;
-      
-      if (marketAddress) {
-        url += `&market_address=${marketAddress}`;
+      const walletAddr = getWalletAddr();
+      if (!walletAddr) {
+        throw new Error('缺少钱包地址（请连接钱包或开启开发模式）');
       }
+      let url = `/api/positions?wallet_address=${encodeURIComponent(walletAddr)}&status=open`;
+      if (fixtureId) url += `&fixture_id=${encodeURIComponent(fixtureId)}`;
       
       const { apiClient } = await import('@/lib/apiClient');
-      const data = await apiClient.get(url, { timeoutMs: 10000 });
-      
-      if (!response.ok) {
-        throw new Error(data.error || '获取持仓数据失败');
+      const data = await apiClient.get(url, { timeoutMs: 12000 });
+      if (!data || data.ok === false) {
+        throw new Error(data?.error || '获取持仓数据失败');
       }
-      
-      setPositions(data.positions || []);
+      setPositions(Array.isArray(data.positions) ? data.positions : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -115,17 +133,22 @@ export function ClosePositionModal({
 
   // 处理平仓
   const handleClosePosition = async (positionId: number) => {
-    if (!wallet.publicKey) return;
     
     setClosingPosition(positionId);
     setError(null);
     
     try {
+      const walletAddr = getWalletAddr();
+      if (!walletAddr) {
+        throw new Error('缺少钱包地址（请连接钱包或开启开发模式）');
+      }
       const { apiClient } = await import('@/lib/apiClient');
-      const data = await apiClient.post('/api/positions/close', {
+      // 使用统一 PATCH 动作接口
+      const data = await apiClient.patch('/api/positions', {
+        action: 'close',
         position_id: positionId,
-        wallet_address: wallet.publicKey.toBase58(),
-        close_price: closePrice ? parseFloat(closePrice) * 1_000_000_000 : null,
+        wallet_address: walletAddr,
+        close_price: closePrice ? parseFloat(closePrice) : null,
       }, { timeoutMs: 12000 });
       
       if (!data || data.ok === false) {
@@ -238,28 +261,7 @@ export function ClosePositionModal({
     </Card>
   );
 
-  if (!wallet.publicKey) {
-    return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {trigger || (
-            <Button variant="outline" size="sm">
-              平仓
-            </Button>
-          )}
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>平仓管理</DialogTitle>
-          </DialogHeader>
-          <div className="text-center py-8">
-            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">请先连接钱包</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  // 不再强制要求钱包连接；支持开发模式地址
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
