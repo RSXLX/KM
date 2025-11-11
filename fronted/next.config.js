@@ -8,7 +8,7 @@ const nextConfig = {
   distDir: isDev ? '.next' : 'out',
   images: {
     unoptimized: !isDev,
-    domains: ['images.unsplash.com', 'via.placeholder.com', 'coindesk.com', 'espn.com']
+    domains: ['localhost', '127.0.0.1', 'images.unsplash.com', 'via.placeholder.com', 'coindesk.com', 'espn.com']
   },
   experimental: {
     optimizeCss: false

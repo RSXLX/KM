@@ -1,4 +1,5 @@
 use actix_web::{App, HttpServer, web, middleware};
+use actix_files::Files;
 use actix_cors::Cors;
 use tracing_subscriber;
 
@@ -27,6 +28,11 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
     tracing::info!("Server listening on http://{}", server_addr);
 
+    // 壁纸静态目录：可通过环境变量 WALLPAPER_DIR 覆盖；默认指向前端仓库中的资源目录
+    // 注意：默认目录名按现有路径拼写为 "wallpapaer"
+    let wallpaper_dir = std::env::var("WALLPAPER_DIR")
+        .unwrap_or_else(|_| "../fronted/lib/wallpapaer".to_string());
+
     HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
@@ -39,6 +45,12 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
+            // 静态壁纸服务：直接映射文件系统目录到 /api/wallpaper
+            .service(
+                Files::new("/api/wallpaper", wallpaper_dir.clone())
+                    .prefer_utf8(true)
+                    .use_last_modified(true)
+            )
             .service(
                 web::scope("/api/v1")
                     .route("/markets", web::get().to(routes::markets::get_markets))
@@ -77,6 +89,11 @@ async fn main() -> std::io::Result<()> {
                     .route("/admin/users/{id}/blacklist", web::post().to(routes::admin_users::set_blacklist))
                     .route("/admin/users/{id}/whitelist", web::post().to(routes::admin_users::set_whitelist))
                     .route("/admin/users/{id}/stats", web::get().to(routes::admin_users::get_user_stats))
+                    // Admin carousel
+                    .route("/admin/carousel", web::get().to(routes::admin_carousel::list_items))
+                    .route("/admin/carousel", web::post().to(routes::admin_carousel::create_item))
+                    .route("/admin/carousel/{id}", web::put().to(routes::admin_carousel::update_item))
+                    .route("/admin/carousel/{id}", web::delete().to(routes::admin_carousel::delete_item))
                     // 兼容输出：前端 database.ts 对齐结构
                     .service(
                         web::scope("/compat")

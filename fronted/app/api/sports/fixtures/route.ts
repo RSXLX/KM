@@ -3,7 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 function getBackendBase() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
+  // 兼容多种环境变量写法：
+  // - 'http://localhost:8080' => 自动补全为 'http://localhost:8080/api/v1'
+  // - 'http://localhost:8080/api' => 自动补全为 'http://localhost:8080/api/v1'
+  // - 'http://localhost:8080/api/v1' => 原样使用
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
+  const trimmed = raw.replace(/\/+$/, '');
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
 }
 
 // Proxy GET /api/sports/fixtures -> backend /api/v1/sports/fixtures

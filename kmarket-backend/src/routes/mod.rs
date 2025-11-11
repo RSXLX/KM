@@ -8,3 +8,4 @@ pub mod admin_auth;
 pub mod admin_markets;
 pub mod admin_orders;
 pub mod admin_users;
+pub mod admin_carousel;

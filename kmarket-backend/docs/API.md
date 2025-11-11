@@ -29,6 +29,20 @@
 }
 ```
 
+## 壁纸静态服务
+- 目录配置：通过环境变量 `WALLPAPER_DIR` 指定壁纸文件所在目录。
+  - 默认值：`../fronted/lib/wallpapaer`（与前端仓库同级，注意目录名为现有拼写）
+- 接口：`GET /api/wallpaper/{filename}`
+- 用途：为轮播图与壁纸提供本地静态资源访问（例如 Next.js 前端使用 `next/image` 加载）。
+- 示例：
+```
+curl -I http://localhost:8080/api/wallpaper/bark_tree_moss_1220636_2560x1600.jpg
+```
+- 返回：
+  - 成功：`200 OK`，`Content-Type: image/jpeg|image/png|image/webp...`
+  - 失败：`404 Not Found`（文件不存在或目录未配置）
+- 注意：如使用 Next.js `next/image` 组件，需在 `fronted/next.config.js` 的 `images.domains` 中包含 `localhost` 或 `127.0.0.1`。
+
 ## 市场相关
 ### 获取市场列表
 - 接口：`GET /api/v1/markets`

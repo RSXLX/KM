@@ -1,0 +1,24 @@
+[
+  {
+    "id": "c1731300000000",
+    "title": "Wallpaper Showcase A",
+    "subtitle": "Nature",
+    "image_url": "/api/wallpaper/waterfall_stones_pond_1093381_2560x1440.jpg",
+    "href": "/sports-betting?league=NBA",
+    "order": 1,
+    "enabled": true,
+    "created_at": "2025-11-11T00:00:00Z",
+    "updated_at": "2025-11-11T00:00:00Z"
+  },
+  {
+    "id": "c1731300000001",
+    "title": "Wallpaper Showcase B",
+    "subtitle": "City",
+    "image_url": "/api/wallpaper/wallhaven-4l33el_1920x1080.png",
+    "href": "/sports-betting?league=NFL",
+    "order": 2,
+    "enabled": true,
+    "created_at": "2025-11-11T00:00:00Z",
+    "updated_at": "2025-11-11T00:00:00Z"
+  }
+]

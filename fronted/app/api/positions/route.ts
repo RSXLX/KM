@@ -77,12 +77,25 @@ export async function GET(req: NextRequest) {
     if (status) qs.append('status', status);
     if (fixtureId) qs.append('fixture_id', fixtureId);
     const resp = await fetch(`${base}/compat/users/${encodeURIComponent(walletAddress)}/positions?${qs.toString()}`, { cache: 'no-store' });
-    const json = await resp.json();
-    if (!resp.ok) {
-      return NextResponse.json({ ok: false, error: json?.error || 'Backend error' }, { status: resp.status });
+    const ct = resp.headers.get('content-type') || '';
+    let raw: any = null;
+    try {
+      raw = ct.includes('application/json') ? await resp.json() : await resp.text();
+    } catch (e: any) {
+      // 后端返回空体或非JSON时，避免抛错
+      raw = null;
     }
-    const positions = json?.data?.positions ?? json?.data ?? [];
-    const total = Number(json?.data?.pagination?.total ?? positions.length);
+    if (!resp.ok) {
+      const msg = typeof raw === 'string' ? raw : raw?.error || 'Backend error';
+      // 将后端 404 映射为空列表的成功响应，避免前端报错
+      if (resp.status === 404) {
+        return NextResponse.json({ ok: true, positions: [], pagination: { page, limit, total: 0, total_pages: 0 } }, { status: 200 });
+      }
+      return NextResponse.json({ ok: false, error: msg }, { status: resp.status });
+    }
+    const data = raw?.data ?? raw ?? {};
+    const positions = data?.positions ?? [];
+    const total = Number(data?.pagination?.total ?? positions.length);
     return NextResponse.json({ ok: true, positions, pagination: { page, limit, total, total_pages: Math.ceil(total / limit) } });
   } catch (e: any) {
     console.error('[positions] proxy GET error:', e);
