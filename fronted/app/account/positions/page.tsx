@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useSearchParams } from 'next/navigation';
 import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,9 @@ function bpsToMultiplier(bps: number): number {
 
 export default function PositionsPage() {
   const wallet = useWallet();
+  const searchParams = useSearchParams();
+  const paramAddr = searchParams.get('wallet_address') || null;
+  const walletAddr = wallet.publicKey ? wallet.publicKey.toBase58() : paramAddr;
   const [positions, setPositions] = useState<Position[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -95,7 +99,7 @@ export default function PositionsPage() {
 
   // 获取持仓数据
   const fetchPositions = async () => {
-    if (!wallet.publicKey) return;
+    if (!walletAddr) return;
     
     setLoading(true);
     setError(null);
@@ -103,7 +107,7 @@ export default function PositionsPage() {
     try {
       const { apiClient } = await import('@/lib/apiClient');
       const data = await apiClient.get(`/api/positions`, {
-        query: { wallet_address: wallet.publicKey.toBase58(), limit: 100 },
+        query: { wallet_address: walletAddr, limit: 100 },
         timeoutMs: 10000,
       });
       
@@ -121,12 +125,12 @@ export default function PositionsPage() {
 
   // 获取用户统计
   const fetchUserStats = async () => {
-    if (!wallet.publicKey) return;
+    if (!walletAddr) return;
     
     try {
       const { apiClient } = await import('@/lib/apiClient');
       const data = await apiClient.get(`/api/users/stats`, {
-        query: { wallet_address: wallet.publicKey.toBase58() },
+        query: { wallet_address: walletAddr },
         timeoutMs: 8000,
       });
       
@@ -141,7 +145,8 @@ export default function PositionsPage() {
   useEffect(() => {
     fetchPositions();
     fetchUserStats();
-  }, [wallet.publicKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet.publicKey, paramAddr]);
 
   // 处理平仓
   const handleClosePosition = async (positionId: number) => {
@@ -299,7 +304,7 @@ export default function PositionsPage() {
     </Card>
   );
 
-  if (!wallet.publicKey) {
+  if (!wallet.publicKey && !paramAddr) {
     return (
       <ResponsiveLayout>
         <div className="p-6">
@@ -308,7 +313,8 @@ export default function PositionsPage() {
               <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <h2 className="text-xl font-semibold mb-2">请连接钱包</h2>
               <p className="text-muted-foreground">
-                连接钱包后即可查看您的持仓记录和交易历史
+                连接钱包后即可查看您的持仓记录和交易历史。
+                或在地址栏使用参数 <code>?wallet_address=...</code> 进行调试查看。
               </p>
             </CardContent>
           </Card>
