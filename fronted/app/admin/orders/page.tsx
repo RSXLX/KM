@@ -28,7 +28,8 @@ export default function AdminOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch('/api/admin/orders');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+      const resp = await fetch('/api/admin/orders', { headers: token ? { authorization: `Bearer ${token}` } : undefined });
       const data = await resp.json();
       const list = (data?.data?.items || []) as any[];
       setItems(list.map((x) => ({
@@ -58,7 +59,8 @@ export default function AdminOrdersPage() {
 
   const onCancel = async (id: number) => {
     setError(null);
-    const resp = await fetch(`/api/admin/orders/${id}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'admin_cancel' }) });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const resp = await fetch(`/api/admin/orders/${id}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ reason: 'admin_cancel' }) });
     const data = await resp.json();
     if (!resp.ok || !data?.success) { setError(data?.error?.message || '取消失败'); return; }
     await load();
@@ -74,7 +76,8 @@ export default function AdminOrdersPage() {
     const id = Number(settleForm.id);
     const close_price = Number(settleForm.close_price);
     if (!id || !close_price || close_price <= 0) { setError('请输入有效的结算价格'); return; }
-    const resp = await fetch(`/api/admin/orders/${id}/settle`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ close_price }) });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const resp = await fetch(`/api/admin/orders/${id}/settle`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ close_price }) });
     const data = await resp.json();
     if (!resp.ok || !data?.success) { setError(data?.error?.message || '结算失败'); return; }
     setSettleForm({ id: '', close_price: '' });
@@ -125,7 +128,7 @@ export default function AdminOrdersPage() {
             <h2 className="text-lg font-semibold mb-4">订单结算</h2>
             <input className="border p-2 w-full mb-3" placeholder="结算价格" value={settleForm.close_price} onChange={e => setSettleForm({ ...settleForm, close_price: e.target.value })} />
             <div className="flex justify-end gap-2">
-              <button type="button" className="px-3 py-2" onClick={() => setSettleForm({ id: '', close_price: '' })}>取消</button>
+              <button type="button" className="px-3 py-2 border rounded" onClick={() => setSettleForm({ id: '', close_price: '' })}>取消</button>
               <button type="submit" className="bg-black text-white px-3 py-2 rounded">确认结算</button>
             </div>
           </form>

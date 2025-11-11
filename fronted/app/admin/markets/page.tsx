@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import PageHeader from '@/components/admin/PageHeader';
 
 type MarketItem = {
   id: number;
@@ -35,7 +36,8 @@ export default function AdminMarketsPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch('/api/admin/markets');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+      const resp = await fetch('/api/admin/markets', { headers: token ? { authorization: `Bearer ${token}` } : undefined });
       const data = await resp.json();
       const list = (data?.data?.items || []) as any[];
       setItems(list.map((x) => ({
@@ -74,7 +76,8 @@ export default function AdminMarketsPage() {
         odds_home_bps: createForm.odds_home_bps ? Number(createForm.odds_home_bps) : undefined,
         odds_away_bps: createForm.odds_away_bps ? Number(createForm.odds_away_bps) : undefined,
       };
-      const resp = await fetch('/api/admin/markets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+      const resp = await fetch('/api/admin/markets', { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(payload) });
       const data = await resp.json();
       if (!resp.ok || !data?.success) { throw new Error(data?.error?.message || '创建失败'); }
       setShowCreate(false);
@@ -86,7 +89,8 @@ export default function AdminMarketsPage() {
 
   const onDeactivate = async (id: number) => {
     setError(null);
-    const resp = await fetch(`/api/admin/markets/${id}/deactivate`, { method: 'POST' });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const resp = await fetch(`/api/admin/markets/${id}/deactivate`, { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : undefined });
     const data = await resp.json();
     if (!resp.ok || !data?.success) { setError(data?.error?.message || '下架失败'); return; }
     await load();
@@ -94,7 +98,8 @@ export default function AdminMarketsPage() {
 
   const onSettle = async (id: number, winningOption: number) => {
     setError(null);
-    const resp = await fetch(`/api/admin/markets/${id}/settle`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ winning_option: winningOption }) });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const resp = await fetch(`/api/admin/markets/${id}/settle`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ winning_option: winningOption }) });
     const data = await resp.json();
     if (!resp.ok || !data?.success) { setError(data?.error?.message || '结算失败'); return; }
     await load();
@@ -102,22 +107,19 @@ export default function AdminMarketsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">市场管理（MVP）</h1>
-        <button className="bg-black text-white px-3 py-2 rounded" onClick={() => setShowCreate(true)}>新建市场</button>
-      </div>
+      <PageHeader title="市场管理" description="创建、上下架、结算" actions={<button className="inline-flex items-center bg-black text-white px-3 py-2 rounded" onClick={() => setShowCreate(true)}>新建市场</button>} />
       {error && <div className="mb-3 text-red-500 text-sm">{error}</div>}
       {loading ? <div>加载中...</div> : (
-        <table className="w-full text-left border">
+        <table className="w-full text-left border rounded">
           <thead>
-            <tr className="border-b">
-              <th className="p-2">ID</th>
-              <th className="p-2">业务ID</th>
-              <th className="p-2">标题</th>
-              <th className="p-2">状态</th>
-              <th className="p-2">选项</th>
-              <th className="p-2">赔率(bps)</th>
-              <th className="p-2">操作</th>
+            <tr className="border-b bg-gray-50">
+              <th className="p-2 text-xs text-muted-foreground">ID</th>
+              <th className="p-2 text-xs text-muted-foreground">业务ID</th>
+              <th className="p-2 text-xs text-muted-foreground">标题</th>
+              <th className="p-2 text-xs text-muted-foreground">状态</th>
+              <th className="p-2 text-xs text-muted-foreground">选项</th>
+              <th className="p-2 text-xs text-muted-foreground">赔率(bps)</th>
+              <th className="p-2 text-xs text-muted-foreground">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -130,9 +132,11 @@ export default function AdminMarketsPage() {
                 <td className="p-2">{it.option_a} / {it.option_b}</td>
                 <td className="p-2">{it.odds_home_bps ?? '-'} / {it.odds_away_bps ?? '-'}</td>
                 <td className="p-2">
-                  <button className="mr-2 underline" onClick={() => onDeactivate(it.id)}>下架</button>
-                  <button className="mr-2 underline" onClick={() => onSettle(it.id, 0)}>结算A胜</button>
-                  <button className="underline" onClick={() => onSettle(it.id, 1)}>结算B胜</button>
+                  <div className="flex gap-2">
+                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onDeactivate(it.id)}>下架</button>
+                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onSettle(it.id, 0)}>结算A胜</button>
+                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onSettle(it.id, 1)}>结算B胜</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -142,7 +146,7 @@ export default function AdminMarketsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
-          <form onSubmit={onCreate} className="bg-white p-6 rounded w-full max-w-lg">
+          <form onSubmit={onCreate} className="bg-white p-6 rounded w-full max-w-lg shadow">
             <h2 className="text-lg font-semibold mb-4">新建市场</h2>
             <div className="grid grid-cols-2 gap-3">
               <input className="border p-2" placeholder="业务ID" value={createForm.market_id} onChange={e => setCreateForm({ ...createForm, market_id: e.target.value })} />
@@ -161,7 +165,7 @@ export default function AdminMarketsPage() {
               <input className="border p-2" placeholder="客队赔率bps" value={createForm.odds_away_bps} onChange={e => setCreateForm({ ...createForm, odds_away_bps: e.target.value })} />
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="px-3 py-2" onClick={() => setShowCreate(false)}>取消</button>
+              <button type="button" className="px-3 py-2 border rounded" onClick={() => setShowCreate(false)}>取消</button>
               <button type="submit" className="bg-black text-white px-3 py-2 rounded">创建</button>
             </div>
           </form>

@@ -137,6 +137,32 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
   - stats 接口返回 total_pnl、balance、order_count。
 - 审计：所有写操作在 audit_logs 留痕，可按 resource/actor 查询。
 
+## 7. 联调验收与守卫增强（Step E）
+
+- 联调范围
+  - 前端：/admin/login、/admin/markets、/admin/orders、/admin/users 三页的主要流程（创建/下架/结算、取消/结算、状态修改/黑白名单/统计）
+  - 后端：/api/v1/admin/* 全部路由与数据库写入（markets、orders、users、audit_logs）
+  - 数据库：连接 `DATABASE_URL` 一致，迁移已执行（0009_admin.sql、0010_user_flags.sql）
+
+- 守卫增强（JWT）
+  - 在所有 /api/v1/admin/* 路由入口做 JWT 校验（Authorization: Bearer <token>）
+  - Token 验证通过后，从 claims.sub（email）查询 admin_users.id，作为 actor_id 写入审计
+  - 前端代理（Next.js）透传 Authorization 头；前端页面从 localStorage 读取 admin_token 并在请求头中携带
+
+- 验收用例
+  - 登录后访问 /admin/* 任意页，未携带 Authorization 时后端返回 401；携带正确 token 时 200
+  - 市场：创建/下架/结算成功后 audit_logs 中 actor_id 为当前管理员；列表筛选正常
+  - 订单：取消/结算事务成功；users.total_pnl 正确累加；audit_logs.actor_id 正确
+  - 用户：状态修改/黑白名单/白名单生效；统计接口返回 order_count、total_pnl、balance
+
+- 错误与回退
+  - 错误码统一：missing_bearer、invalid_token、admin_not_found、invalid_status 等
+  - 任何写入失败需返回 500 并保留原状态；审计失败不影响主流程但记录日志
+
+- 性能与安全
+  - 限流建议：登录接口与管理写接口按 IP 限流（MVP 可后置）
+  - Token 续期：后续考虑 refresh token 与有效期延长策略（当前 30 分钟）
+
 ## 7. 风险与回退（MVP）
 - 风险：错误结算或赔率操作影响用户权益；MVP 中以二次确认 + 审计回溯降低风险。
 - 回退：保留操作记录与关键字段历史值；遇到异常手动回滚（SQL 或接口）。

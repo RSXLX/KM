@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Result};
+use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::Deserialize;
 use sqlx::Row;
 
@@ -15,7 +15,8 @@ pub struct AdminUsersQuery {
     pub whitelisted: Option<bool>,
 }
 
-pub async fn list_users(state: web::Data<AppState>, query: web::Query<AdminUsersQuery>) -> Result<HttpResponse> {
+pub async fn list_users(req: HttpRequest, state: web::Data<AppState>, query: web::Query<AdminUsersQuery>) -> Result<HttpResponse> {
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * limit;
@@ -97,7 +98,8 @@ pub async fn list_users(state: web::Data<AppState>, query: web::Query<AdminUsers
     Ok(HttpResponse::Ok().json(ApiResponse::success(body)))
 }
 
-pub async fn get_user_detail(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+pub async fn get_user_detail(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let row = sqlx::query("SELECT id, address, username, email, status, total_pnl, balance, blacklisted, whitelisted, created_at, updated_at FROM users WHERE id = $1")
         .bind(id)
@@ -127,7 +129,8 @@ pub async fn get_user_detail(state: web::Data<AppState>, path: web::Path<i64>) -
 #[derive(Deserialize)]
 pub struct UpdateUserStatusRequest { pub status: String }
 
-pub async fn update_user_status(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<UpdateUserStatusRequest>) -> Result<HttpResponse> {
+pub async fn update_user_status(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<UpdateUserStatusRequest>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let status = payload.status.trim();
     let allowed = ["active", "disabled", "suspended"];
@@ -140,7 +143,7 @@ pub async fn update_user_status(state: web::Data<AppState>, path: web::Path<i64>
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64).bind("admin.user_status").bind("users").bind(rid)
+        .bind(actor_id).bind("admin.user_status").bind("users").bind(rid)
         .bind(serde_json::json!({"status": status}))
         .execute(&state.db_pool).await;
     Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"id": rid, "status": status}))))
@@ -149,7 +152,8 @@ pub async fn update_user_status(state: web::Data<AppState>, path: web::Path<i64>
 #[derive(Deserialize)]
 pub struct FlagRequest { pub value: Option<bool> }
 
-pub async fn set_blacklist(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<FlagRequest>) -> Result<HttpResponse> {
+pub async fn set_blacklist(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<FlagRequest>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let val = payload.value.unwrap_or(true);
     let rec = sqlx::query("UPDATE users SET blacklisted = $1 WHERE id = $2 RETURNING id")
@@ -160,13 +164,14 @@ pub async fn set_blacklist(state: web::Data<AppState>, path: web::Path<i64>, pay
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64).bind("admin.user_blacklist").bind("users").bind(rid)
+        .bind(actor_id).bind("admin.user_blacklist").bind("users").bind(rid)
         .bind(serde_json::json!({"blacklisted": val}))
         .execute(&state.db_pool).await;
     Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"id": rid, "blacklisted": val}))))
 }
 
-pub async fn set_whitelist(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<FlagRequest>) -> Result<HttpResponse> {
+pub async fn set_whitelist(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<FlagRequest>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let val = payload.value.unwrap_or(true);
     let rec = sqlx::query("UPDATE users SET whitelisted = $1 WHERE id = $2 RETURNING id")
@@ -177,13 +182,14 @@ pub async fn set_whitelist(state: web::Data<AppState>, path: web::Path<i64>, pay
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64).bind("admin.user_whitelist").bind("users").bind(rid)
+        .bind(actor_id).bind("admin.user_whitelist").bind("users").bind(rid)
         .bind(serde_json::json!({"whitelisted": val}))
         .execute(&state.db_pool).await;
     Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"id": rid, "whitelisted": val}))))
 }
 
-pub async fn get_user_stats(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+pub async fn get_user_stats(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let row = sqlx::query(
         "SELECT u.total_pnl, u.balance, (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS order_count FROM users u WHERE u.id = $1"

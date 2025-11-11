@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Result};
+use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::Deserialize;
 use sqlx::Row;
 use bigdecimal::BigDecimal;
@@ -14,7 +14,9 @@ pub struct AdminMarketsQuery {
     pub q: Option<String>,
 }
 
-pub async fn list_markets(state: web::Data<AppState>, query: web::Query<AdminMarketsQuery>) -> Result<HttpResponse> {
+pub async fn list_markets(req: HttpRequest, state: web::Data<AppState>, query: web::Query<AdminMarketsQuery>) -> Result<HttpResponse> {
+    // auth guard
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * limit;
@@ -102,7 +104,8 @@ pub struct CreateAdminMarket {
     pub away_name: Option<String>,
 }
 
-pub async fn create_market(state: web::Data<AppState>, payload: web::Json<CreateAdminMarket>) -> Result<HttpResponse> {
+pub async fn create_market(req: HttpRequest, state: web::Data<AppState>, payload: web::Json<CreateAdminMarket>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let p = payload.into_inner();
     if p.end_time <= p.start_time { return Ok(HttpResponse::BadRequest().json(ApiResponse::<()>::error("invalid_time", "end_time must be after start_time"))); }
     if !["pending","active","settled","cancelled"].contains(&p.status.as_str()) {
@@ -134,7 +137,7 @@ pub async fn create_market(state: web::Data<AppState>, payload: web::Json<Create
 
     // Audit
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64)
+        .bind(actor_id)
         .bind("admin.market_create")
         .bind("markets")
         .bind(id)
@@ -160,7 +163,8 @@ pub struct UpdateAdminMarket {
     pub away_name: Option<String>,
 }
 
-pub async fn update_market(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<UpdateAdminMarket>) -> Result<HttpResponse> {
+pub async fn update_market(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<UpdateAdminMarket>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let p = payload.into_inner();
     let mut sets: Vec<String> = Vec::new();
@@ -201,7 +205,7 @@ pub async fn update_market(state: web::Data<AppState>, path: web::Path<i64>, pay
     let rid: i64 = rec.try_get("id").unwrap_or(id);
 
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id) VALUES ($1, $2, $3, $4)")
-        .bind(0i64)
+        .bind(actor_id)
         .bind("admin.market_update")
         .bind("markets")
         .bind(rid)
@@ -211,7 +215,8 @@ pub async fn update_market(state: web::Data<AppState>, path: web::Path<i64>, pay
     Ok(HttpResponse::Ok().json(ApiResponse::success(serde_json::json!({"id": rid}))))
 }
 
-pub async fn deactivate_market(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+pub async fn deactivate_market(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let rec = sqlx::query("UPDATE markets SET status = 'cancelled' WHERE id = $1 RETURNING id")
         .bind(id)
@@ -220,7 +225,7 @@ pub async fn deactivate_market(state: web::Data<AppState>, path: web::Path<i64>)
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id) VALUES ($1, $2, $3, $4)")
-        .bind(0i64)
+        .bind(actor_id)
         .bind("admin.market_deactivate")
         .bind("markets")
         .bind(rid)
@@ -232,7 +237,8 @@ pub async fn deactivate_market(state: web::Data<AppState>, path: web::Path<i64>)
 #[derive(Deserialize)]
 pub struct SettleAdminMarket { pub winning_option: i16, pub resolved_at: Option<chrono::DateTime<chrono::Utc>> }
 
-pub async fn settle_market(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<SettleAdminMarket>) -> Result<HttpResponse> {
+pub async fn settle_market(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<SettleAdminMarket>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let p = payload.into_inner();
     let resolved_at = p.resolved_at.unwrap_or_else(|| chrono::Utc::now());
@@ -245,7 +251,7 @@ pub async fn settle_market(state: web::Data<AppState>, path: web::Path<i64>, pay
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id) VALUES ($1, $2, $3, $4)")
-        .bind(0i64)
+        .bind(actor_id)
         .bind("admin.market_settle")
         .bind("markets")
         .bind(rid)

@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Result};
+use actix_web::{web, HttpResponse, Result, HttpRequest};
 use serde::Deserialize;
 use sqlx::Row;
 use bigdecimal::BigDecimal;
@@ -15,7 +15,8 @@ pub struct AdminOrdersQuery {
     pub market_id: Option<i64>,
 }
 
-pub async fn list_orders(state: web::Data<AppState>, query: web::Query<AdminOrdersQuery>) -> Result<HttpResponse> {
+pub async fn list_orders(req: HttpRequest, state: web::Data<AppState>, query: web::Query<AdminOrdersQuery>) -> Result<HttpResponse> {
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * limit;
@@ -91,7 +92,8 @@ pub async fn list_orders(state: web::Data<AppState>, query: web::Query<AdminOrde
     Ok(HttpResponse::Ok().json(ApiResponse::success(body)))
 }
 
-pub async fn get_order_detail(state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+pub async fn get_order_detail(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>) -> Result<HttpResponse> {
+    let _actor = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let row = sqlx::query(
         "SELECT o.id, o.order_id, o.user_id, u.address AS wallet_address, o.market_id, m.market_id AS fixture_id, o.amount, o.odds, o.option, o.status, o.created_at, o.updated_at, o.closed_at, o.close_price, o.close_pnl FROM orders o JOIN users u ON u.id = o.user_id JOIN markets m ON m.id = o.market_id WHERE o.id = $1"
@@ -127,7 +129,8 @@ pub async fn get_order_detail(state: web::Data<AppState>, path: web::Path<i64>) 
 #[derive(Deserialize)]
 pub struct CancelOrderRequest { pub reason: Option<String> }
 
-pub async fn cancel_order(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<CancelOrderRequest>) -> Result<HttpResponse> {
+pub async fn cancel_order(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<CancelOrderRequest>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let reason = payload.reason.clone();
     let mut tx = state.db_pool.begin().await.map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -145,7 +148,7 @@ pub async fn cancel_order(state: web::Data<AppState>, path: web::Path<i64>, payl
     let rid: i64 = rec.try_get("id").unwrap_or(id);
     // audit
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64).bind("admin.order_cancel").bind("orders").bind(rid)
+        .bind(actor_id).bind("admin.order_cancel").bind("orders").bind(rid)
         .bind(serde_json::json!({"reason": reason}))
         .execute(&mut *tx)
         .await;
@@ -156,7 +159,8 @@ pub async fn cancel_order(state: web::Data<AppState>, path: web::Path<i64>, payl
 #[derive(Deserialize)]
 pub struct SettleOrderRequest { pub close_price: f64, pub closed_at: Option<chrono::DateTime<chrono::Utc>> }
 
-pub async fn settle_order(state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<SettleOrderRequest>) -> Result<HttpResponse> {
+pub async fn settle_order(req: HttpRequest, state: web::Data<AppState>, path: web::Path<i64>, payload: web::Json<SettleOrderRequest>) -> Result<HttpResponse> {
+    let actor_id = crate::utils::auth::admin_actor_id(&req, &state.db_pool).await?;
     let id = path.into_inner();
     let p = payload.into_inner();
     let closed_at = p.closed_at.unwrap_or_else(|| chrono::Utc::now());
@@ -193,7 +197,7 @@ pub async fn settle_order(state: web::Data<AppState>, path: web::Path<i64>, payl
 
     // audit
     let _ = sqlx::query("INSERT INTO audit_logs (actor_id, action, resource, resource_id, payload_json) VALUES ($1, $2, $3, $4, $5)")
-        .bind(0i64).bind("admin.order_settle").bind("orders").bind(id)
+        .bind(actor_id).bind("admin.order_settle").bind("orders").bind(id)
         .bind(serde_json::json!({"close_price": p.close_price, "close_pnl": close_pnl}))
         .execute(&mut *tx)
         .await;

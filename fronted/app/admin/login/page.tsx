@@ -26,6 +26,7 @@ export default function AdminLoginPage() {
       const token = data?.data?.token;
       if (token) {
         localStorage.setItem('admin_token', token);
+        document.cookie = `admin_token=${token}; path=/; max-age=1800; samesite=lax`;
       }
       window.location.href = '/admin';
     } catch (e: any) {
@@ -41,9 +42,9 @@ export default function AdminLoginPage() {
         <h1 className="text-xl font-semibold mb-4">管理员登录</h1>
         {error && <div className="mb-3 text-red-500 text-sm">{error}</div>}
         <label className="block mb-2 text-sm">邮箱</label>
-        <input className="w-full border rounded p-2 mb-4" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@kmarket.local" />
+        <input className="w-full border border-gray-300 rounded p-2 mb-4 bg-white text-black placeholder-gray-400 focus:outline-none focus:ring focus:ring-black/10" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@kmarket.local" />
         <label className="block mb-2 text-sm">密码</label>
-        <input className="w-full border rounded p-2 mb-4" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="******" />
+        <input className="w-full border border-gray-300 rounded p-2 mb-4 bg-white text-black placeholder-gray-400 focus:outline-none focus:ring focus:ring-black/10" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="******" />
         <button type="submit" className="w-full bg-black text-white py-2 rounded" disabled={loading}>{loading ? '登录中...' : '登录'}</button>
       </form>
     </div>

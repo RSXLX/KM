@@ -3,3 +3,4 @@ pub mod health;
 pub mod mock;
 pub mod response;
 pub mod mappers;
+pub mod auth;
