@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import TeamSelector from '@/components/sports/TeamSelector';
-import TeamInfo from '@/components/sports/TeamInfo';
+import { TeamInfo } from '@/components/sports/TeamInfo';
 import { TeamDetails } from '@/types/sports';
 import { mockTeamsAPI } from '@/lib/sports/mockTeamsAPI';
 

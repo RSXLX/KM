@@ -6,6 +6,8 @@ import { fetchFixtures, type MockFixture } from '@/lib/sports/mockFixtures';
 import { classifyFixtureTitle } from '@/lib/sports/classification';
 import { InPlaySidebar } from '@/components/sports/InPlaySidebar';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 type LeagueOption = {
   value: string;
@@ -156,32 +158,35 @@ export function EventsQuickBar() {
             { key: 'PRE', label: `赛前 (${preCount})` },
             { key: 'FINAL', label: `已结束 (${finalCount})` },
           ].map(t => (
-            <button
+            <Button
               key={t.key}
               onClick={() => setStatusTab(t.key as StatusTab)}
-              className={`px-2 py-1 text-xs rounded-none border ${statusTab === t.key ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground hover:text-foreground border-border/40'}`}
+              variant={statusTab === t.key ? 'default' : 'outline'}
+              size="sm"
             >
               {t.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* 体育分类按钮（水平滚动，含“All”） */}
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide max-w-[65vw] sm:max-w-[50vw] md:max-w-[40vw] lg:max-w-[35vw]">
-          <button
+          <Button
             onClick={() => setSelectedSport('ALL')}
-            className={`px-2 py-1 text-xs rounded-none border ${selectedSport === 'ALL' ? 'bg-secondary/10 text-secondary-foreground border-secondary/30' : 'text-muted-foreground hover:text-foreground border-border/40'}`}
+            variant={selectedSport === 'ALL' ? 'secondary' : 'outline'}
+            size="sm"
           >
             All Sports
-          </button>
+          </Button>
           {categories.map(cat => (
-            <button
+            <Button
               key={`cat-btn-${cat}`}
               onClick={() => setSelectedSport(cat)}
-              className={`px-2 py-1 text-xs rounded-none border ${selectedSport === cat ? 'bg-secondary/10 text-secondary-foreground border-secondary/30' : 'text-muted-foreground hover:text-foreground border-border/40'}`}
+              variant={selectedSport === cat ? 'secondary' : 'outline'}
+              size="sm"
             >
               {cat}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -219,12 +224,14 @@ export function EventsQuickBar() {
                       <div className="text-[10px] md:text-[11px] text-muted-foreground mb-0.5 flex items-center justify-between leading-tight">
                         <span>{m.league ?? m.sport}</span>
                         {m?.status?.isLive ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] md:text-[11px] border border-emerald-500/30 text-emerald-500 bg-emerald-500/10 rounded-none">
+                          <Badge variant="default" className="gap-1 px-1.5 py-0.5 text-[10px] md:text-[11px]">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             Live
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="text-[10px] md:text-[11px] text-muted-foreground">{m?.status?.finished ? 'FT' : 'Scheduled'}</span>
+                          <Badge variant="outline" className="text-[10px] md:text-[11px]">
+                            {m?.status?.finished ? 'FT' : 'Scheduled'}
+                          </Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between">

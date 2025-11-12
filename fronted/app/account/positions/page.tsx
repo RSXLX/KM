@@ -96,6 +96,9 @@ export default function PositionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [closingPosition, setClosingPosition] = useState<number | null>(null);
   const [closePrice, setClosePrice] = useState('');
+  // 顶部筛选：状态与赛事ID
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [fixtureIdFilter, setFixtureIdFilter] = useState<string>('');
 
   // 获取持仓数据
   const fetchPositions = async () => {
@@ -107,7 +110,12 @@ export default function PositionsPage() {
     try {
       const { apiClient } = await import('@/lib/apiClient');
       const data = await apiClient.get(`/api/positions`, {
-        query: { wallet_address: walletAddr, limit: 100 },
+        query: {
+          wallet_address: walletAddr,
+          limit: 100,
+          ...(filterStatus !== 'all' ? { status: filterStatus } : {}),
+          ...(fixtureIdFilter ? { fixture_id: fixtureIdFilter } : {}),
+        },
         timeoutMs: 10000,
       });
       
@@ -146,7 +154,7 @@ export default function PositionsPage() {
     fetchPositions();
     fetchUserStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet.publicKey, paramAddr]);
+  }, [wallet.publicKey, paramAddr, filterStatus, fixtureIdFilter]);
 
   // 处理平仓
   const handleClosePosition = async (positionId: number) => {
@@ -183,6 +191,20 @@ export default function PositionsPage() {
     return { openPositions: open, closedPositions: closed };
   }, [positions]);
 
+  // 本地聚合兜底统计（当后端 stats 缺失时使用）
+  const aggStats = useMemo(() => {
+    const total_positions = positions.length;
+    const open_positions = openPositions.length;
+    const closed_positions = closedPositions.length;
+    const won_positions = positions.filter(p => p.status === 2).length;
+    const lost_positions = positions.filter(p => p.status === 3).length;
+    const total_volume = positions.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const total_pnl = positions.reduce((sum, p) => sum + (Number(p.pnl) || 0), 0);
+    const total_fees_paid = positions.reduce((sum, p) => sum + (Number(p.fee_paid) || 0), 0);
+    const win_rate = total_positions ? won_positions / total_positions : 0;
+    return { total_positions, open_positions, closed_positions, won_positions, lost_positions, total_volume, total_pnl, total_fees_paid, win_rate } as UserStats;
+  }, [positions, openPositions, closedPositions]);
+
   const renderPositionCard = (position: Position, showCloseButton = false) => (
     <Card key={position.id} className="mb-4">
       <CardContent className="p-4">
@@ -200,7 +222,7 @@ export default function PositionsPage() {
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-3">
           <div>
             <p className="text-xs text-muted-foreground">下注金额</p>
             <p className="font-medium">{lamportsToSol(position.amount).toFixed(4)} SOL</p>
@@ -220,6 +242,27 @@ export default function PositionsPage() {
               {lamportsToSol(position.pnl).toFixed(4)} SOL
             </p>
           </div>
+          {typeof position.odds_home_bps === 'number' && (
+            <div>
+              <p className="text-xs text-muted-foreground">主队赔率</p>
+              <p className="font-medium">{bpsToMultiplier(position.odds_home_bps)}x</p>
+            </div>
+          )}
+          {typeof position.odds_away_bps === 'number' && (
+            <div>
+              <p className="text-xs text-muted-foreground">客队赔率</p>
+              <p className="font-medium">{bpsToMultiplier(position.odds_away_bps)}x</p>
+            </div>
+          )}
+          {typeof position.odds_home_bps === 'number' || typeof position.odds_away_bps === 'number' ? (
+            <div>
+              <p className="text-xs text-muted-foreground">所选赔率</p>
+              <p className="font-medium">
+                {position.selected_team === 1 && typeof position.odds_home_bps === 'number' ? `${bpsToMultiplier(position.odds_home_bps)}x` :
+                 position.selected_team !== 1 && typeof position.odds_away_bps === 'number' ? `${bpsToMultiplier(position.odds_away_bps)}x` : '--'}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex justify-between items-center text-xs text-muted-foreground">
@@ -326,8 +369,26 @@ export default function PositionsPage() {
   return (
     <ResponsiveLayout>
       <div className="p-6 space-y-6">
+        {/* 顶部筛选：状态与赛事ID */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">状态筛选:</span>
+            <Button variant={filterStatus === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('all')}>全部</Button>
+            <Button variant={filterStatus === 'open' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('open')}>持仓中</Button>
+            <Button variant={filterStatus === 'closed' ? 'default' : 'outline'} size="sm" onClick={() => setFilterStatus('closed')}>已关闭</Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="fixtureIdFilter" className="text-sm">赛事ID</Label>
+            <Input id="fixtureIdFilter" value={fixtureIdFilter} onChange={(e) => setFixtureIdFilter(e.target.value)} placeholder="可选：输入赛事ID过滤" className="w-48" />
+            {fixtureIdFilter && (
+              <Button variant="outline" size="sm" onClick={() => setFixtureIdFilter('')}>清除</Button>
+            )}
+          </div>
+        </div>
         {/* 用户统计 */}
-        {userStats && (
+        {(() => {
+          const stats = userStats ?? aggStats;
+          return (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -336,29 +397,47 @@ export default function PositionsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <div className="text-center">
-                  <p className="text-2xl font-bold">{userStats.total_positions}</p>
-                  <p className="text-sm text-muted-foreground">总持仓数</p>
+                  <p className="text-2xl font-bold">{stats.total_positions}</p>
+                  <p className="text-sm text-muted-foreground">订单数</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{userStats.won_positions}</p>
-                  <p className="text-sm text-muted-foreground">盈利次数</p>
+                  <p className="text-2xl font-bold">{stats.open_positions}</p>
+                  <p className="text-sm text-muted-foreground">开仓中</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold">{(userStats.win_rate * 100).toFixed(1)}%</p>
+                  <p className="text-2xl font-bold">{stats.closed_positions}</p>
+                  <p className="text-sm text-muted-foreground">已关闭</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{(stats.win_rate * 100).toFixed(1)}%</p>
                   <p className="text-sm text-muted-foreground">胜率</p>
                 </div>
                 <div className="text-center">
-                  <p className={`text-2xl font-bold ${userStats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {lamportsToSol(userStats.total_pnl).toFixed(4)} SOL
-                  </p>
+                  <p className={`text-2xl font-bold ${stats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>{lamportsToSol(stats.total_pnl).toFixed(4)} SOL</p>
                   <p className="text-sm text-muted-foreground">总盈亏</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{lamportsToSol(stats.total_volume).toFixed(4)} SOL</p>
+                  <p className="text-sm text-muted-foreground">总成交量</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{lamportsToSol(stats.total_fees_paid).toFixed(4)} SOL</p>
+                  <p className="text-sm text-muted-foreground">总手续费</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">{stats.won_positions}</p>
+                  <p className="text-sm text-muted-foreground">盈利次数</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-red-600">{stats.lost_positions}</p>
+                  <p className="text-sm text-muted-foreground">亏损次数</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        )}
+        ); })()}
 
         {/* 错误提示 */}
         {error && (
@@ -380,24 +459,24 @@ export default function PositionsPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="open" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>当前持仓</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <p className="text-center text-muted-foreground">加载中...</p>
-                ) : openPositions.length === 0 ? (
-                  <p className="text-center text-muted-foreground">暂无持仓</p>
-                ) : (
-                  <div className="space-y-4">
-                    {openPositions.map(position => renderPositionCard(position, true))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+      <TabsContent value="open" className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>当前持仓</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-center text-muted-foreground">加载中...</p>
+            ) : openPositions.length === 0 ? (
+              <p className="text-center text-muted-foreground">暂无持仓</p>
+            ) : (
+              <div className="space-y-4">
+                {openPositions.map(position => renderPositionCard(position, true))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
             <Card>

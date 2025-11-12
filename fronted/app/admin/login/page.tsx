@@ -1,5 +1,8 @@
 'use client';
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('admin@kmarket.local');
@@ -37,15 +40,21 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={onSubmit} className="w-full max-w-sm bg-white p-6 rounded shadow">
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <form onSubmit={onSubmit} className="w-full max-w-sm bg-card text-card-foreground p-6 rounded-md shadow">
         <h1 className="text-xl font-semibold mb-4">管理员登录</h1>
-        {error && <div className="mb-3 text-red-500 text-sm">{error}</div>}
-        <label className="block mb-2 text-sm">邮箱</label>
-        <input className="w-full border border-gray-300 rounded p-2 mb-4 bg-white text-black placeholder-gray-400 focus:outline-none focus:ring focus:ring-black/10" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@kmarket.local" />
-        <label className="block mb-2 text-sm">密码</label>
-        <input className="w-full border border-gray-300 rounded p-2 mb-4 bg-white text-black placeholder-gray-400 focus:outline-none focus:ring focus:ring-black/10" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="******" />
-        <button type="submit" className="w-full bg-black text-white py-2 rounded" disabled={loading}>{loading ? '登录中...' : '登录'}</button>
+        {error && <div className="mb-3 text-sm text-destructive">{error}</div>}
+        <div className="mb-3 space-y-2">
+          <Label htmlFor="email" className="text-sm">邮箱</Label>
+          <Input id="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@kmarket.local" />
+        </div>
+        <div className="mb-4 space-y-2">
+          <Label htmlFor="password" className="text-sm">密码</Label>
+          <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="******" />
+        </div>
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? '登录中...' : '登录'}
+        </Button>
       </form>
     </div>
   );

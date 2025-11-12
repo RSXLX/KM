@@ -1,6 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
 import PageHeader from '@/components/admin/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type MarketItem = {
   id: number;
@@ -107,7 +117,7 @@ export default function AdminMarketsPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="市场管理" description="创建、上下架、结算" actions={<button className="inline-flex items-center bg-black text-white px-3 py-2 rounded" onClick={() => setShowCreate(true)}>新建市场</button>} />
+      <PageHeader title="市场管理" description="创建、上下架、结算" actions={<Button onClick={() => setShowCreate(true)}>新建市场</Button>} />
       {error && <div className="mb-3 text-red-500 text-sm">{error}</div>}
       {loading ? <div>加载中...</div> : (
         <table className="w-full text-left border rounded">
@@ -133,9 +143,9 @@ export default function AdminMarketsPage() {
                 <td className="p-2">{it.odds_home_bps ?? '-'} / {it.odds_away_bps ?? '-'}</td>
                 <td className="p-2">
                   <div className="flex gap-2">
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onDeactivate(it.id)}>下架</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onSettle(it.id, 0)}>结算A胜</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onSettle(it.id, 1)}>结算B胜</button>
+                    <Button variant="outline" size="sm" onClick={() => onDeactivate(it.id)}>下架</Button>
+                    <Button variant="outline" size="sm" onClick={() => onSettle(it.id, 0)}>结算A胜</Button>
+                    <Button variant="outline" size="sm" onClick={() => onSettle(it.id, 1)}>结算B胜</Button>
                   </div>
                 </td>
               </tr>
@@ -146,27 +156,59 @@ export default function AdminMarketsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
-          <form onSubmit={onCreate} className="bg-white p-6 rounded w-full max-w-lg shadow">
+          <form onSubmit={onCreate} className="bg-card text-card-foreground p-6 rounded-md w-full max-w-lg shadow">
             <h2 className="text-lg font-semibold mb-4">新建市场</h2>
             <div className="grid grid-cols-2 gap-3">
-              <input className="border p-2" placeholder="业务ID" value={createForm.market_id} onChange={e => setCreateForm({ ...createForm, market_id: e.target.value })} />
-              <input className="border p-2" placeholder="标题" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} />
-              <input className="border p-2" placeholder="选项A" value={createForm.option_a} onChange={e => setCreateForm({ ...createForm, option_a: e.target.value })} />
-              <input className="border p-2" placeholder="选项B" value={createForm.option_b} onChange={e => setCreateForm({ ...createForm, option_b: e.target.value })} />
-              <input className="border p-2" type="datetime-local" placeholder="开始时间" value={createForm.start_time} onChange={e => setCreateForm({ ...createForm, start_time: e.target.value })} />
-              <input className="border p-2" type="datetime-local" placeholder="结束时间" value={createForm.end_time} onChange={e => setCreateForm({ ...createForm, end_time: e.target.value })} />
-              <select className="border p-2" value={createForm.status} onChange={e => setCreateForm({ ...createForm, status: e.target.value })}>
-                <option value="pending">pending</option>
-                <option value="active">active</option>
-                <option value="settled">settled</option>
-                <option value="cancelled">cancelled</option>
-              </select>
-              <input className="border p-2" placeholder="主队赔率bps" value={createForm.odds_home_bps} onChange={e => setCreateForm({ ...createForm, odds_home_bps: e.target.value })} />
-              <input className="border p-2" placeholder="客队赔率bps" value={createForm.odds_away_bps} onChange={e => setCreateForm({ ...createForm, odds_away_bps: e.target.value })} />
+              <div className="space-y-2">
+                <Label htmlFor="market_id" className="text-sm">业务ID</Label>
+                <Input id="market_id" placeholder="业务ID" value={createForm.market_id} onChange={e => setCreateForm({ ...createForm, market_id: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-sm">标题</Label>
+                <Input id="title" placeholder="标题" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="option_a" className="text-sm">选项A</Label>
+                <Input id="option_a" placeholder="选项A" value={createForm.option_a} onChange={e => setCreateForm({ ...createForm, option_a: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="option_b" className="text-sm">选项B</Label>
+                <Input id="option_b" placeholder="选项B" value={createForm.option_b} onChange={e => setCreateForm({ ...createForm, option_b: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="start_time" className="text-sm">开始时间</Label>
+                <Input id="start_time" type="datetime-local" placeholder="开始时间" value={createForm.start_time} onChange={e => setCreateForm({ ...createForm, start_time: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end_time" className="text-sm">结束时间</Label>
+                <Input id="end_time" type="datetime-local" placeholder="结束时间" value={createForm.end_time} onChange={e => setCreateForm({ ...createForm, end_time: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">状态</Label>
+                <Select value={createForm.status} onValueChange={(v) => setCreateForm({ ...createForm, status: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">pending</SelectItem>
+                    <SelectItem value="active">active</SelectItem>
+                    <SelectItem value="settled">settled</SelectItem>
+                    <SelectItem value="cancelled">cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="odds_home_bps" className="text-sm">主队赔率bps</Label>
+                <Input id="odds_home_bps" placeholder="主队赔率bps" value={createForm.odds_home_bps} onChange={e => setCreateForm({ ...createForm, odds_home_bps: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="odds_away_bps" className="text-sm">客队赔率bps</Label>
+                <Input id="odds_away_bps" placeholder="客队赔率bps" value={createForm.odds_away_bps} onChange={e => setCreateForm({ ...createForm, odds_away_bps: e.target.value })} />
+              </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="px-3 py-2 border rounded" onClick={() => setShowCreate(false)}>取消</button>
-              <button type="submit" className="bg-black text-white px-3 py-2 rounded">创建</button>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>取消</Button>
+              <Button type="submit">创建</Button>
             </div>
           </form>
         </div>

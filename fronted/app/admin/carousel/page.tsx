@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import type { CarouselItem, CarouselCreatePayload, CarouselUpdatePayload } from '@/types/carousel';
 import { apiClient } from '@/lib/apiClient';
 
@@ -130,7 +132,7 @@ export default function CarouselAdminPage() {
                 ))}
               </div>
               <div className="mt-2 flex items-center gap-2">
-                <input type="file" accept="image/*" onChange={e => onUpload(e.target.files?.[0] || null)} />
+                <Input type="file" accept="image/*" onChange={e => onUpload((e.target as HTMLInputElement).files?.[0] || null)} />
                 {uploading && <span className="text-xs text-muted-foreground">上传中…</span>}
               </div>
             </div>
@@ -143,8 +145,8 @@ export default function CarouselAdminPage() {
               <Input type="number" value={draft.order} onChange={e => setDraft(d => ({ ...d, order: parseInt(e.target.value || '1', 10) }))} />
             </div>
             <div className="flex items-center gap-2">
-              <input id="enabled" type="checkbox" checked={draft.enabled} onChange={e => setDraft(d => ({ ...d, enabled: e.target.checked }))} />
-              <label htmlFor="enabled" className="text-sm">启用</label>
+              <Checkbox id="enabled" checked={draft.enabled} onCheckedChange={(v) => setDraft(d => ({ ...d, enabled: !!v }))} />
+              <Label htmlFor="enabled" className="text-sm">启用</Label>
             </div>
           </div>
           <div className="mt-4">

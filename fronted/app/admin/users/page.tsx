@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import PageHeader from '@/components/admin/PageHeader';
+import { Button } from '@/components/ui/button';
 
 type UserItem = {
   id: number;
@@ -116,11 +117,11 @@ export default function AdminUsersPage() {
                 <td className="p-2">{(it.total_pnl ?? '-')}/{(it.balance ?? '-')}</td>
                 <td className="p-2">
                   <div className="flex flex-wrap gap-2">
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => openStats(it.id)}>统计</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onStatus(it.id, 'active')}>设为活跃</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onStatus(it.id, 'disabled')}>禁用</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onBlacklist(it.id, !it.blacklisted)}>{it.blacklisted ? '移出黑名单' : '加入黑名单'}</button>
-                    <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => onWhitelist(it.id, !it.whitelisted)}>{it.whitelisted ? '移出白名单' : '加入白名单'}</button>
+                    <Button variant="outline" size="sm" onClick={() => openStats(it.id)}>统计</Button>
+                    <Button variant="outline" size="sm" onClick={() => onStatus(it.id, 'active')}>设为活跃</Button>
+                    <Button variant="outline" size="sm" onClick={() => onStatus(it.id, 'disabled')}>禁用</Button>
+                    <Button variant="outline" size="sm" onClick={() => onBlacklist(it.id, !it.blacklisted)}>{it.blacklisted ? '移出黑名单' : '加入黑名单'}</Button>
+                    <Button variant="outline" size="sm" onClick={() => onWhitelist(it.id, !it.whitelisted)}>{it.whitelisted ? '移出白名单' : '加入白名单'}</Button>
                   </div>
                 </td>
               </tr>
@@ -143,7 +144,7 @@ export default function AdminUsersPage() {
               <div>加载中...</div>
             )}
             <div className="mt-4 text-right">
-              <button className="px-3 py-2" onClick={() => setStatsUserId(null)}>关闭</button>
+              <Button variant="outline" onClick={() => setStatsUserId(null)}>关闭</Button>
             </div>
           </div>
         </div>

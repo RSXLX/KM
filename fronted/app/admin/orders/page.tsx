@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type OrderItem = {
   id: number;
@@ -113,8 +115,10 @@ export default function AdminOrdersPage() {
                 <td className="p-2">{it.status}</td>
                 <td className="p-2">{it.close_price ?? '-'} / {it.close_pnl ?? '-'}</td>
                 <td className="p-2">
-                  <button className="mr-2 underline" onClick={() => onCancel(it.id)}>取消</button>
-                  <button className="underline" onClick={() => onOpenSettle(it.id)}>结算</button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => onCancel(it.id)}>取消</Button>
+                    <Button variant="outline" size="sm" onClick={() => onOpenSettle(it.id)}>结算</Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -124,12 +128,12 @@ export default function AdminOrdersPage() {
 
       {settleForm.id && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
-          <form onSubmit={onSubmitSettle} className="bg-white p-6 rounded w-full max-w-sm">
+          <form onSubmit={onSubmitSettle} className="bg-card text-card-foreground p-6 rounded-md w-full max-w-sm">
             <h2 className="text-lg font-semibold mb-4">订单结算</h2>
-            <input className="border p-2 w-full mb-3" placeholder="结算价格" value={settleForm.close_price} onChange={e => setSettleForm({ ...settleForm, close_price: e.target.value })} />
+            <Input className="w-full mb-3" placeholder="结算价格" value={settleForm.close_price} onChange={e => setSettleForm({ ...settleForm, close_price: e.target.value })} />
             <div className="flex justify-end gap-2">
-              <button type="button" className="px-3 py-2 border rounded" onClick={() => setSettleForm({ id: '', close_price: '' })}>取消</button>
-              <button type="submit" className="bg-black text-white px-3 py-2 rounded">确认结算</button>
+              <Button type="button" variant="outline" onClick={() => setSettleForm({ id: '', close_price: '' })}>取消</Button>
+              <Button type="submit">确认结算</Button>
             </div>
           </form>
         </div>

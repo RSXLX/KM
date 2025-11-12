@@ -71,7 +71,7 @@ export function SportsBettingClient({ fixtureId, isLiveSignal, onBetSuccess }: S
   ];
 
   return (
-    <div className="min-h-screen text-foreground relative z-[210]">
+    <div className="text-foreground relative z-[210]">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <Card className="tech-card mb-4">

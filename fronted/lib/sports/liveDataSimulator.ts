@@ -39,6 +39,53 @@ export class LiveDataSimulator {
     this.matches.set(match.id, { ...match });
   }
 
+  // 对单场比赛执行一次“快照更新”，返回更新后的副本
+  // 该方法不依赖内部定时器，便于外部以自定义频率推进（例如在 Hook 内的 setInterval）
+  updateMatch(match: LiveMatch): LiveMatch {
+    // 若非 Live 状态，直接返回原对象副本
+    const next: LiveMatch = { 
+      ...match, 
+      teams: { 
+        home: { ...(match.teams.home || {}) }, 
+        away: { ...(match.teams.away || {}) } 
+      }, 
+      status: { ...(match.status || {}) }, 
+      liveOdds: match.liveOdds ? { ...(match.liveOdds) } : undefined 
+    };
+
+    if (!next.status?.isLive) {
+      return next;
+    }
+
+    // 1) 时间推进
+    const t = this.simulateTimeProgress(next);
+    if (t) {
+      Object.assign(next.status, t);
+    }
+
+    // 2) 分数变化
+    const s = this.simulateScoreChange(next);
+    if (s) {
+      if (s.home !== undefined) next.teams.home.score = s.home;
+      if (s.away !== undefined) next.teams.away.score = s.away;
+    }
+
+    // 3) 赔率变化
+    const o = this.simulateOddsChange(next);
+    if (o && next.liveOdds) {
+      Object.assign(next.liveOdds, o);
+      next.liveOdds.lastUpdated = Date.now();
+    }
+
+    // 4) 状态变化
+    const st = this.checkStatusChange(next);
+    if (st) {
+      Object.assign(next.status, st);
+    }
+
+    return next;
+  }
+
   // 移除比赛
   removeMatch(matchId: string): void {
     this.stopSimulation(matchId);

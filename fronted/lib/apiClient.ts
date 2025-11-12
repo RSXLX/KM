@@ -23,8 +23,23 @@ const inFlight = new Map<string, Promise<any>>();
 function buildUrl(path: string, query?: RequestOptions['query'], base?: string): string {
   const baseUrl = base ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
   const isAbsolute = path.startsWith('http');
-  const isFrontendApi = path.startsWith('/api/'); // 前端本地 API 路径应直接走同源，不叠加后端 baseUrl
-  const full = isAbsolute ? path : (isFrontendApi ? path : `${baseUrl}${path}`);
+  // 仅将 /api/* 但不包含 /api/v1/* 视为前端本地路由
+  const isFrontendApi = path.startsWith('/api/') && !path.startsWith('/api/v1/');
+  const isBackendV1Path = path.startsWith('/api/v1/');
+  let full = path;
+  if (!isAbsolute) {
+    if (isFrontendApi) {
+      // 前端本地路由，保持同源
+      full = path;
+    } else if (isBackendV1Path) {
+      // 后端绝对路径（带 /api/v1 前缀），避免与 BASE_URL 重复追加
+      const backendOrigin = baseUrl ? baseUrl.replace(/\/api\/v1\/?$/, '') : '';
+      full = `${backendOrigin}${path}`;
+    } else {
+      // 其他后端相对路径，直接拼接 BASE_URL
+      full = `${baseUrl}${path}`;
+    }
+  }
   const url = new URL(full, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   if (query) {
     Object.entries(query).forEach(([k, v]) => {

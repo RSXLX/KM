@@ -4,8 +4,10 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LiveInPlayGrid } from '@/components/sports/LiveInPlayGrid';
 import type { LiveMatch } from '@/components/sports/LiveMatchCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import { fetchFixtures, type MockFixture } from '@/lib/sports/mockFixtures';
 import { enrichFixture } from '@/lib/sports/classification';
 import apiClient from '@/lib/apiClient';
@@ -37,6 +39,21 @@ export function SportsClassifiedGrid() {
     }
     load();
     return () => { cancelled = true; };
+  }, [activeStatus]);
+
+  // 当处于 In-Play（live）状态时，周期刷新赛程，确保后端 Active 改动能及时反映到列表
+  useEffect(() => {
+    if (activeStatus !== 'live') return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const apiFixtures = await fetchFixtures({ status: 'live', page: 1, limit: 50 });
+        if (!cancelled) setFixtures(apiFixtures);
+      } catch (e) {
+        // 静默失败，保留现有列表
+      }
+    }, 10000); // 10s 刷新一次
+    return () => { cancelled = true; clearInterval(interval); };
   }, [activeStatus]);
 
   const enriched = useMemo(() => fixtures.map(f => ({ f, c: enrichFixture(f) })), [fixtures]);
@@ -92,35 +109,22 @@ export function SportsClassifiedGrid() {
       {/* 筛选区 */}
       <Card className="tech-card">
         <CardHeader>
-          <CardTitle className="text-lg">Browse Sports Fixtures</CardTitle>
+       
         </CardHeader>
         <CardContent>
           {loading && (<div className="text-sm text-muted-foreground mb-2">Loading fixtures...</div>)}
           {error && (<div className="text-sm text-red-600 mb-2">{error}</div>)}
           {/* 状态切换：Pre / In-Play */}
           <div className="flex flex-wrap gap-2 mb-4">
-            <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeStatus === 'pre' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
-              onClick={() => setActiveStatus('pre')}
-            >Pre-Game</button>
-            <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeStatus === 'live' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
-              onClick={() => setActiveStatus('live')}
-            >In-Play</button>
+            <Button variant={activeStatus === 'pre' ? 'default' : 'outline'} size="sm" onClick={() => setActiveStatus('pre')}>Pre-Game</Button>
+            <Button variant={activeStatus === 'live' ? 'default' : 'outline'} size="sm" onClick={() => setActiveStatus('live')}>In-Play</Button>
           </div>
 
           {/* 一级：运动类型 Tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
-            <button
-              className={`px-3 py-1 rounded-md text-sm border ${activeSport === 'All' ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
-              onClick={() => setActiveSport('All')}
-            >All</button>
+            <Button variant={activeSport === 'All' ? 'default' : 'outline'} size="sm" onClick={() => setActiveSport('All')}>All</Button>
             {sports.map(sp => (
-              <button
-                key={sp}
-                className={`px-3 py-1 rounded-md text-sm border ${activeSport === sp ? 'bg-primary text-primary-foreground' : 'bg-muted'} hover:bg-accent`}
-                onClick={() => setActiveSport(sp)}
-              >{sp}</button>
+              <Button key={sp} variant={activeSport === sp ? 'default' : 'outline'} size="sm" onClick={() => setActiveSport(sp)}>{sp}</Button>
             ))}
           </div>
 
@@ -141,6 +145,12 @@ export function SportsClassifiedGrid() {
       </Card>
 
       {/* 列表区：仅显示当前状态对应的数据 */}
+      <div className="flex items-center gap-2">
+        <Badge variant="outline">Matches: {matches.length}</Badge>
+        <Badge variant={activeStatus === 'live' ? 'default' : 'secondary'}>
+          {activeStatus === 'live' ? 'In-Play' : 'Pre-Game'}
+        </Badge>
+      </div>
       <LiveInPlayGrid matches={matches} status={activeStatus} />
     </div>
   );
